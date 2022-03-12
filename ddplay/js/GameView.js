@@ -132,10 +132,10 @@ export default class GameView  {
 
       this.sharedData=getSharedData();
       let gameCanvas = document.getElementById("gameCanvas");
-alert("W,H:" + gameCanvas.width + ", " +  gameCanvas.height
- + " :a " + screen.width + ", " + screen.height
-+ " :b " + gameCanvas.getBoundingClientRect().width + ", " + gameCanvas.getBoundingClientRect().height
-+ " :c " + gameCanvas.scrollWidth + ", " + gameCanvas.scrollHeight);
+//alert("W,H:" + gameCanvas.width + ", " +  gameCanvas.height
+// + " :a " + screen.width + ", " + screen.height
+//+ " :b " + gameCanvas.getBoundingClientRect().width + ", " + gameCanvas.getBoundingClientRect().height
+//+ " :c " + gameCanvas.scrollWidth + ", " + gameCanvas.scrollHeight);
 
     this.sharedData.gameWidth = gameCanvas.getBoundingClientRect().width;
     this.sharedData.gameHeight = gameCanvas.getBoundingClientRect().height;
