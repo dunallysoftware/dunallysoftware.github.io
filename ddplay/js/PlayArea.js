@@ -23,7 +23,7 @@ export default class PlayArea {
       let sharedData = getSharedData();
       this.right = sharedData.gameWidth;
       this.bottom = sharedData.gameHeight;
-      this.outside_bottom = this.bottom * 1.2;
+      this.outside_bottom = this.bottom * 1.2;      
     }
 
 

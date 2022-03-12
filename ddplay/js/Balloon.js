@@ -10,12 +10,18 @@ import {BORDER} from "./PlayArea.js";
 import Word from "./Word.js";
 import Hud from "./Hud.js";
 
+export const DIMENSION = {
+        "X":1,
+        "Y":2
+};
+
+
 const letterDefaultBitmaps = new Map();
 
 var INITIAL_Y;  // Initial y position of balloons
-const INITIAL_Y_SPEED_UNSCALED = 10; //GameLoop.speedToPerUpdate(300);
+const INITIAL_Y_SPEED_UNSCALED = 500/Constants.MAX_UPS; //GameLoop.speedToPerUpdate(300);
 var MAX_INITIAL_X;
-const MAX_INITIAL_X_SPEED_UNSCALED = 5; //GameLoop.speedToPerUpdate(150.0);
+const MAX_INITIAL_X_SPEED_UNSCALED = 250/Constants.MAX_UPS; //5; //GameLoop.speedToPerUpdate(150.0);
 var maxInitialXSpeed;
 var maxCurrentXSpeed;
 const X_SPEED_INITIAL_MULTIPLIER = 0.25;
@@ -282,151 +288,10 @@ console.log(e);}
     collidedWithOtherBalloon = function(balloon1)
     {
         if (!this.canCollide() || !balloon1.canCollide()) return false;
-        return Balloon.collisionCircle.collidedWithCircle(this, balloon1, Balloon.collisionCircle);
+        return collisionCircle.collidedWithCircle(this, balloon1, collisionCircle);
     }
 
-/*
-    // todo: Can still see some overlaps happening.
-    checkCollisionsInDimension = function(dimension, List<Balloon> balloons)
-    {
-        boolean found = false;
-        // Clear existing collisions, and set dimensions to X or Y
-        for (Balloon balloon : balloons)
-        {
 
-            balloon.negativeDirectionBalloon=null;
-            balloon.positiveDirectionBalloon=null;
-            balloon.startOfChain=null;
-            if (dimension == DIMENSION.X) {
-                balloon.size_1d = balloon.x_size;
-                balloon.position_1d = balloon.x;
-                balloon.speed_1d = balloon.x_speed;
-            }
-            else {
-                balloon.size_1d = balloon.y_size;
-                balloon.position_1d = balloon.y;
-                balloon.speed_1d = balloon.y_speed;
-            }
-        }
-        for (int idx = 0; idx < balloons.size(); idx++)
-        {
-            Balloon b1 = balloons.get(idx);
-
-            for (int idx1=idx+1; idx1 < balloons.size(); idx1++)
-            {
-                Balloon b2 = balloons.get(idx1);
-                if (b1.collidedWithOtherBalloon(b2)) {
-                    //System.out.println("COLLIDE: " + dimension + "  " + b1.letter + " " + b2.letter);
-                    if (b1.position_1d < b2.position_1d && b1.position_1d + b1.size_1d >= b2.position_1d) {
-                        b1.positiveDirectionBalloon = b2;
-                        b2.negativeDirectionBalloon = b1;
-                        found = true;
-                        if (b1.startOfChain == null) {
-                            propogateNewStartOfChain(b1, b1);
-                        } else {
-                            propogateNewStartOfChain(b2, b1.startOfChain);
-                        }
-                    } else if (b2.position_1d < b1.position_1d && b2.position_1d + b2.size_1d >= b1.position_1d) {
-                        b2.positiveDirectionBalloon = b1;
-                        b1.negativeDirectionBalloon = b2;
-                        found = true;
-                        if (b2.startOfChain == null) {
-                            propogateNewStartOfChain(b2, b2);
-                        } else {
-                            propogateNewStartOfChain(b1, b2.startOfChain);
-                        }
-                    }
-                }
-            }
-        }
-        // Stop now if we didn't find any collisions
-        if (!found) return;
-
-        // Get each start of chain
-        for (Balloon balloon: balloons)
-        {
-            if (balloon.startOfChain == balloon)
-            {
-                bounceChainOfCollisions(dimension, balloon);
-            }
-        }
-
-    }
-*/
-/*
-    private static void bounceChainOfCollisions(DIMENSION dimension, Balloon startOfChain)
-    {
-        //Balloon thisBalloon = startOfChain;
-        //System.out.println("b1 : " + thisBalloon.letter + "  " + thisBalloon.x + ", " + thisBalloon.y + "  :  "+ thisBalloon.x_speed + ",  " + thisBalloon.y_speed );
-        //System.out.println("b2 : " + thisBalloon.positiveDirectionBalloon.letter + "  " + thisBalloon.positiveDirectionBalloon.x + ", " + thisBalloon.positiveDirectionBalloon.y + "  :  "+ thisBalloon.positiveDirectionBalloon.x_speed + ",  " + thisBalloon.positiveDirectionBalloon.y_speed);
-            // Go forward, then back, until no swaps
-            int direction = 1;
-            Balloon thisBalloon = startOfChain;
-
-            while (true)
-            {
-                boolean swaps = false;
-                Balloon nextBalloon;
-                if (direction > 0)
-                {
-                    nextBalloon = thisBalloon.positiveDirectionBalloon;
-                }
-                else
-                {
-                    nextBalloon = thisBalloon.negativeDirectionBalloon;
-                }
-                while (nextBalloon != null)
-                {
-                    if ((direction > 0 && thisBalloon.speed_1d > nextBalloon.speed_1d)
-                         ||(direction < 0 && thisBalloon.speed_1d < nextBalloon.speed_1d))
-                    {
-                        double speedA = nextBalloon.speed_1d;
-                        nextBalloon.speed_1d = thisBalloon.speed_1d;
-                        thisBalloon.speed_1d = speedA;
-                        swaps=true;
-                    }
-                    thisBalloon=nextBalloon;
-                    if (direction > 0)
-                    {
-                        nextBalloon = thisBalloon.positiveDirectionBalloon;
-                    }
-                    else
-                    {
-                        nextBalloon = thisBalloon.negativeDirectionBalloon;
-                    }
-                }
-                if (!swaps) break;
-                direction *= -1;
-            }
-            // Update speeds for dimension
-            thisBalloon = startOfChain;
-            while (thisBalloon != null)
-            {
-                if (dimension == DIMENSION.X)
-                {
-                    thisBalloon.x_speed = thisBalloon.speed_1d;
-                }
-                else
-                {
-                    thisBalloon.y_speed = thisBalloon.speed_1d;
-                }
-                thisBalloon = thisBalloon.positiveDirectionBalloon;
-            }
-
-
-    }
-*/
-/*
-    private static void propogateNewStartOfChain(Balloon balloon, Balloon startOfChain)
-    {
-        Balloon balloon1 = balloon;
-        while (balloon1 != null)
-        {
-            balloon1.startOfChain = startOfChain;
-            balloon1 = balloon1.positiveDirectionBalloon;
-        }
-    }
-*/
 
 /*
     public void bounceBalloon(Balloon balloon1)
@@ -574,3 +439,139 @@ function initialiseImages(sharedData)
         maxCurrentXSpeed += (maxCurrentXSpeed*maxXSpeedMultiplier);
         maxXSpeedMultiplier *= X_SPEED_INCREMENT_REDUCER;
     }
+
+    // todo: Can still see some overlaps happening.
+    export function checkCollisionsInDimension(dimension, balloons)
+    {
+        let found = false;
+        // Clear existing collisions, and set dimensions to X or Y
+        for (let b=0;b<balloons.length;b++)
+        {
+            let balloon = balloons[b];
+            balloon.negativeDirectionBalloon=null;
+            balloon.positiveDirectionBalloon=null;
+            balloon.startOfChain=null;
+            if (dimension == DIMENSION.X) {
+                balloon.size_1d = balloon.x_size;
+                balloon.position_1d = balloon.x;
+                balloon.speed_1d = balloon.x_speed;
+            }
+            else {
+                balloon.size_1d = balloon.y_size;
+                balloon.position_1d = balloon.y;
+                balloon.speed_1d = balloon.y_speed;
+            }
+        }
+        for (let idx = 0; idx < balloons.length; idx++)
+        {
+            let b1 = balloons[idx];
+
+            for (let idx1=idx+1; idx1 < balloons.length; idx1++)
+            {
+                let b2 = balloons[idx1];
+                if (b1.collidedWithOtherBalloon(b2)) {
+                    //System.out.println("COLLIDE: " + dimension + "  " + b1.letter + " " + b2.letter);
+                    if (b1.position_1d < b2.position_1d && b1.position_1d + b1.size_1d >= b2.position_1d) {
+                        b1.positiveDirectionBalloon = b2;
+                        b2.negativeDirectionBalloon = b1;
+                        found = true;
+                        if (b1.startOfChain == null) {
+                            propogateNewStartOfChain(b1, b1);
+                        } else {
+                            propogateNewStartOfChain(b2, b1.startOfChain);
+                        }
+                    } else if (b2.position_1d < b1.position_1d && b2.position_1d + b2.size_1d >= b1.position_1d) {
+                        b2.positiveDirectionBalloon = b1;
+                        b1.negativeDirectionBalloon = b2;
+                        found = true;
+                        if (b2.startOfChain == null) {
+                            propogateNewStartOfChain(b2, b2);
+                        } else {
+                            propogateNewStartOfChain(b1, b2.startOfChain);
+                        }
+                    }
+                }
+            }
+        }
+        // Stop now if we didn't find any collisions
+        if (!found) return;
+
+        // Get each start of chain
+        for (let b=0;b<balloons.length;b++)
+        {
+            let balloon = balloons[b];
+            if (balloon.startOfChain == balloon)
+            {
+                bounceChainOfCollisions(dimension, balloon);
+            }
+        }
+    }
+
+    export function propogateNewStartOfChain(balloon, startOfChain)
+        {
+            let balloon1 = balloon;
+            while (balloon1)
+            {
+                balloon1.startOfChain = startOfChain;
+                balloon1 = balloon1.positiveDirectionBalloon;
+            }
+        }
+
+
+    export function bounceChainOfCollisions(dimension, startOfChain)
+    {
+    // Go forward, then back, until no swaps
+        let direction = 1;
+        let thisBalloon = startOfChain;
+        while (true)
+        {
+          let swaps = false;
+          let nextBalloon;
+          if (direction > 0)
+          {
+            nextBalloon = thisBalloon.positiveDirectionBalloon;
+          }
+          else
+          {
+              nextBalloon = thisBalloon.negativeDirectionBalloon;
+          }
+          while (nextBalloon != null)
+          {
+              if ((direction > 0 && thisBalloon.speed_1d > nextBalloon.speed_1d)
+                  ||(direction < 0 && thisBalloon.speed_1d < nextBalloon.speed_1d))
+              {
+                  let speedA = nextBalloon.speed_1d;
+                  nextBalloon.speed_1d = thisBalloon.speed_1d;
+                  thisBalloon.speed_1d = speedA;
+                  swaps=true;
+              }
+                  thisBalloon=nextBalloon;
+                  if (direction > 0)
+                  {
+                      nextBalloon = thisBalloon.positiveDirectionBalloon;
+                  }
+                  else
+                  {
+                      nextBalloon = thisBalloon.negativeDirectionBalloon;
+                  }
+              }
+              if (!swaps) break;
+              direction *= -1;
+          }
+          // Update speeds for dimension
+          thisBalloon = startOfChain;
+          while (thisBalloon)
+          {
+              if (dimension == DIMENSION.X)
+              {
+                  thisBalloon.x_speed = thisBalloon.speed_1d;
+              }
+              else
+              {
+                  thisBalloon.y_speed = thisBalloon.speed_1d;
+              }
+              thisBalloon = thisBalloon.positiveDirectionBalloon;
+          }
+
+
+      }
