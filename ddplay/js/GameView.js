@@ -534,7 +534,8 @@ export default class GameView  {
           {
             if (this.balloons[b].dead && this.balloons[b].isHint)
             {
-              this.balloons.splice(b,b);
+              let oldlen=this.balloons.length;
+              this.balloons.splice(b,1);
             }
           }
 
