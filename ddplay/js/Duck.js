@@ -258,6 +258,7 @@ if (isMouse && !this.fingerIsDown) this.fingerDown(fingerX, fingerY);
         if (!this.fingerIsDown) return;
 				//if (!this.fingerIsDown) this.fingerDown(fingerX, fingerY);
         // Add clamping here when screen size identified.
+//alert("TARG:" + this.targetX + "  " + this.fingerOffset_x + " " + fingerX);
         this.targetX =fingerX+ this.fingerOffset_x;
         this.targetY =fingerY+ this.fingerOffset_y;
         if (this.targetX < 0) this.targetX = 0;

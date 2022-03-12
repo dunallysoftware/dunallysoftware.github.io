@@ -13,6 +13,7 @@ const FREE_LIFE_SCORE_FREQUENCY_INIT=5000;
 const FREE_LIFE_SCORE_FREQUENCY_INCREMENT=2000;
 const FREE_LIFE_SCORE_MISSED_INTERVAL=50;
 
+const HIGH_SCORE_KEY = "high_score";
 
 export default class HUD {
 
@@ -67,6 +68,8 @@ export default class HUD {
         //let sharedData = getSharedData();
         //this.gamePreferences = gamePreferences;
         //this.highScore = gamePreferences.getInt(R.string.preferences_high_score, 0);
+        this.highScore = 0;
+        this.highScore = window.localStorage.getItem(HIGH_SCORE_KEY);
 
         //scoreBandLeft = 0;
         //scoreBandRight = sharedData.gameWidth;
@@ -143,8 +146,8 @@ export default class HUD {
     {
         if (this.score == this.highScore)
         {
-alert("NEED TO SAVE HIGH SCORE IN PREF");
-            //SharedPreferences.Editor editor = gamePreferences.getEditor();
+          window.localStorage.setItem(HIGH_SCORE_KEY, this.highScore);
+              //SharedPreferences.Editor editor = gamePreferences.getEditor();
             //editor.putInt(context.getString(R.string.preferences_high_score), highScore);
             //editor.commit();
         }
@@ -164,7 +167,7 @@ alert("NEED TO SAVE HIGH SCORE IN PREF");
     draw = function(context)
     {
 
-return;
+
 
         this.currentScoreTextItem.textContent=this.score;
         this.highScoreTextItem.textContent=this.highScore;

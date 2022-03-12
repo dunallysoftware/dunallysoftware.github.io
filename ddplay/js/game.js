@@ -26,7 +26,6 @@ var dummyBalloon;
 var gameView = new GameView();
 
 
-
 export function handleEvent(evt)
 {
 	duck.fingerDown(evt.offsetX, evt.offsetY);

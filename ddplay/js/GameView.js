@@ -72,7 +72,6 @@ export default class GameView  {
     buttonCanvas;
     buttonRect = [];
 
-
     buttonHandler = function(buttonPressed) {
         switch(buttonPressed)
         {
@@ -133,12 +132,28 @@ export default class GameView  {
 
       this.sharedData=getSharedData();
       let gameCanvas = document.getElementById("gameCanvas");
-gameCanvas.width=screen.width;
-gameCanvas.height=screen.height;
-alert("W,H:" + gameCanvas.width + ", " +  gameCanvas.height);
-this.sharedData.gameWidth=screen.width; //300;
-this.sharedData.gameHeight=screen.height;//600;
-alert("W,H:" + this.sharedData.gameWidth + ", " +  this.sharedData.gameHeight);
+alert("W,H:" + gameCanvas.width + ", " +  gameCanvas.height
+ + " :a " + screen.width + ", " + screen.height
++ " :b " + gameCanvas.getBoundingClientRect().width + ", " + gameCanvas.getBoundingClientRect().height
++ " :c " + gameCanvas.scrollWidth + ", " + gameCanvas.scrollHeight);
+
+    this.sharedData.gameWidth = gameCanvas.getBoundingClientRect().width;
+    this.sharedData.gameHeight = gameCanvas.getBoundingClientRect().height;
+
+
+
+    //if (this.sharedData.gameWidth > screen.width)
+  //  {
+    //  this.sharedData.gameWidth = gameCanvas.width;
+    //  this.sharedData.gameHeight = gameCanvas.height;
+    //}
+    gameCanvas.width=this.sharedData.gameWidth;
+    gameCanvas.height=this.sharedData.gameHeight;
+//gameCanvas.width=screen.width;
+//gameCanvas.height=screen.height;
+//this.sharedData.gameWidth=gameCanvas.width; //creen.width; //300;
+//this.sharedData.gameHeight=gameCanvas.height; //creen.height*.85;//600;
+//alert("W,H:" + this.sharedData.gameWidth + ", " +  this.sharedData.gameHeight);
       this.makePlayButton();
       //this.gamePreferences = new GamePreferences(context, sharedPreferences);
 
@@ -188,7 +203,7 @@ alert("W,H:" + this.sharedData.gameWidth + ", " +  this.sharedData.gameHeight);
     		this.duck = new Duck(this.duckTrap);
 
         // Register touches.
-        this.registerTouches(this.duck);
+        this.registerTouches(this.duck, this.word);
         // Make the touch handler
 //        touchHandler = new TouchHandler(this, gamePreferences, hud, duck, word);
         this.showPlay();
@@ -222,6 +237,11 @@ alert("W,H:" + this.sharedData.gameWidth + ", " +  this.sharedData.gameHeight);
     }
 */
 
+    checkSpeechRequired = function()
+    {
+      if (this.word && this.word.waitingToSpeak) this.word.speakSpanishWord();
+    }
+
     newGame = function()
     {
 
@@ -229,6 +249,9 @@ alert("W,H:" + this.sharedData.gameWidth + ", " +  this.sharedData.gameHeight);
         // need to give wordDB time to initialise.
         if (!this.word) this.word = new Word(this.wordDB);
         if (!this.hud) this.hud = new HUD(this.lives, this.word);
+
+
+
         //if (gamePreferences.getBoolean(R.string.preferences_speak_spanish, true) && !tts.localeDownloadCheck(noDownloadLocaleTTSlistener))
         //{
         //    // If we need to do the "download voice" dialog, hide the buttons and skip the rest.
@@ -438,7 +461,6 @@ alert("W,H:" + this.sharedData.gameWidth + ", " +  this.sharedData.gameHeight);
             return;
         }
 
-
         //background.update();
         this.duck.update();
 
@@ -510,9 +532,9 @@ alert("W,H:" + this.sharedData.gameWidth + ", " +  this.sharedData.gameHeight);
 
         for (let b=this.balloons.length-1;b >= 0; b--)
           {
-            if (this.balloons[b].dead)
+            if (this.balloons[b].dead && this.balloons[b].isHint)
             {
-              this.balloons.slice(b,b);
+              this.balloons.splice(b,b);
             }
           }
 
@@ -526,31 +548,38 @@ alert("W,H:" + this.sharedData.gameWidth + ", " +  this.sharedData.gameHeight);
         this.word.endTurn();
     }
 
-    registerTouches = function(duck) {
+    registerTouches = function(duck, word) {
       //document.getElementById("gameCanvas").addEventListener("mousedown", function(evt) {
   		//  duck.fingerDown(evt.offsetX, evt.offsetY);});
         var thisObject = this;
+let isMouse=false;
   	     //document.getElementById("gameCanvas").
          document.addEventListener("mousemove", function(evt) {
+           thisObject.checkSpeechRequired(); //if (word && word.waitingToSpeak) word.speakSpanishWord();
   		     duck.fingerMove(isMouse,evt.offsetX, evt.offsetY);});
          document.getElementById("gameCanvas").addEventListener("click", function(evt) {
+           thisObject.checkSpeechRequired(); //if (word && word.waitingToSpeak) word.speakSpanishWord();
       		     thisObject.buttonClick(evt.offsetX, evt.offsetY);});
   	//document.getElementById("gameCanvas").addEventListener("mouseup", function(evt) {
   	//	  duck.fingerUp(evt.offsetX, evt.offsetY);});
         document.getElementById("gameCanvas").addEventListener("touchstart",function(evt) {
+          thisObject.checkSpeechRequired();
           thisObject.touchStart(evt.touches);});
         document.getElementById("gameCanvas").addEventListener("touchmove",function(evt) {
-                thisObject.touchMove(evt.touches);});
+            thisObject.checkSpeechRequired();
+            thisObject.touchMove(evt.touches);});
     }
 
     touchMove = function(touches)
     {
 //alert("MOVE: " +touches.length + "  " + this.duck.fingerIsDown);
+
       if (touches.length == 0) return;
       if (this.gameOn)
       {
         let touch = touches[touches.length-1];
-        this.duck.fingerMove(false, touch.screenX, touch.screenY);
+//alert("TOUCH: " + touch.screenX + " " + touch.clientX + " " + touch.pageX );
+        this.duck.fingerMove(false, touch.clientX, touch.clientY); //touch.screenX, touch.screenY);
       }
     }
 
@@ -564,11 +593,11 @@ alert("W,H:" + this.sharedData.gameWidth + ", " +  this.sharedData.gameHeight);
       {
         let touch = touches[touches.length-1];
   //alert("FD?" + touches[0].screenX + "  " + touches[0].screenY);// + touches[0].screenX + "  " + touches[1].screenY);// + "  " + this.duck);
-        this.duck.fingerDown(touch.screenX, touch.screenY);
+        this.duck.fingerDown(touch.clientX, touch.clientY); //touch.screenX, touch.screenY);
       }
       else {
 //alert("TOUCH:" + touches[0].pageY + ": " + touches[0].clientY + " : " + touches[0].screenY);
-        for (let t=0;t<touches.length && !this.buttonClick(touches[t].screenX, touches[t].screenY);t++) ;
+        for (let t=0;t<touches.length && !this.buttonClick(touches[t].clientX, touches[t].clientY);t++) ;//(touches[t].screenX, touches[t].screenY);t++) ;
       }
     }
 

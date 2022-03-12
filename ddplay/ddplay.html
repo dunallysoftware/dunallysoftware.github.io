@@ -5,6 +5,28 @@
 		<link rel='stylesheet' href='style.css' />
 	</head>
 	<body style="background-color:#AADAF9">
+<!--	 <div class="topPanel"> -->
+	<div class="gamePanel" id="gamePanelId">
+		<canvas id="gameCanvas" style="background-color:#009900" </canvas> <!-- width='300' height='600'></canvas> -->
+	</div>
+		<div class="topLeft" id="topLeftId">
+			<text id="englishWordLabel" class="headingLabel">English:</text>
+			<text id="englishWord" class="headingField"></text>
+			<text id="maskedWordLabel" class="headingLabel">Spanish:</text>
+			<text id="maskedWord" class="headingField"></text>
+			<text id="hintLabel" class="headingLabel">Hint:</text>
+			<text id="hint" class="headingField"></text>
+			<text id="messageText">??????</text>
+		</div>
+		<div class = "topRight" id="topRightId">
+			<text id="highScoreLabel" class="headingLabel">Highest Score:</text>
+			<text id="highScore" class="headingField"></text>
+			<text id="scoreLabel" class="headingLabel">Score:></text>
+			<text id="score" class="headingField"></text>
+			<text id="wordScoreLabel" class="headingLabel">Word Score:</text>
+			<text id="wordScore" class="headingField"></text>
+		</div>
+	<!--</div> -->
 		<!--
 		<div class="leftSide">
 			<text id="englishWordLabel">English:</text>
@@ -16,9 +38,6 @@
 			<text id="messageText">??????</text>
 		</div>
 	-->
-		<!--<div class="gamePanel"> -->
-			<canvas id="gameCanvas" style="background-color:#009900" width=screen.width height=screen.height</canvas> <!-- width='300' height='600'></canvas> -->
-		<!-- </div> -->
 	<!--
 		<div class = "rightSide">
 			<text id="highScoreLabel">Highest Score:</text>

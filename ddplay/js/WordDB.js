@@ -16,7 +16,6 @@ export class WordPair {
 export default class WordDB {
 
 
-
     // List of words, ordered by length of Spanish word
     words = [];
 
@@ -64,8 +63,8 @@ export default class WordDB {
         	}
         );
 //alert("AFTER: " + this.words.length);
-    }
 
+    }
     // Get the next available word pair from preloaded set (preload if empty)
     nextWordPair = function()
     {

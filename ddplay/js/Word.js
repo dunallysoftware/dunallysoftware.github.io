@@ -46,15 +46,24 @@ export default class Word {
     turnScore = 0;
     gotWord = false;
 
-    constructor( wordDB)
+    waitingToSpeak=false;
+    utterance;
+
+    constructor( wordDB, utterance)
     {
         this.wordDB = wordDB;
-
-        //this.tts = tts;
         //this.soundEffectPlayer = soundEffectPlayer;
         //this.gamePreferences = gamePreferences;
         //gamePreferences.addListener(this);
-        this.speakSpanish = true; //speakSpanish = this.gamePreferences.getBoolean(R.string.preferences_speak_spanish, true);
+        //this.speakSpanish = true; //speakSpanish = this.gamePreferences.getBoolean(R.string.preferences_speak_spanish, true);
+        this.speakSpanish = ('speechSynthesis' in window);
+        if (this.speakSpanish)
+        {
+        //  window.speechSynthesis.cancel();
+          this.utterance = new SpeechSynthesisUtterance();
+          this.utterance.lang="es";
+        //  window.speechSynthesis.speak(this.utterance);
+        }
         this.newWord(false);
         this.initialiseLetterScore();
     }
@@ -90,10 +99,31 @@ export default class Word {
         this.maskedSpanishWord = QUESTION_MARKS.substring(0, this.spanishWord.length);
         this.wordScore=0;
         //if (this.speakSpanish) tts.speak(spanishWord);
-
+        // setTimeout(this.speakSpanishWord(),1000);
+        this.waitingToSpeak=true;
+//alert("WAITING:");
     }
 
+speakSpanishWord = function()
+{
+  //alert("SSW: " + this.waitingToSpeak + "  " + this.speakSpanish);
+  this.waitingToSpeak=false;
+  if (this.speakSpanish)
+  {
+//alert("SPEAKING" + window.speechSynthesis.speaking);
+    try {
+      //let utterance = new SpeechSynthesisUtterance(this.spanishWord);
 
+      //utterance.lang="es";
+      //window.speechSynthesis.cancel();
+      this.utterance.text=this.spanishWord;
+    //  utterance.rate=-1.5;
+      window.speechSynthesis.speak(this.utterance);
+//alert("spoke");
+    }
+    catch (e) {alert(e);}
+  }
+}
 
     increaseDifficultyReward = function()
     {
@@ -178,7 +208,7 @@ export default class Word {
     giveHint = function(freeHint)
     {
         if (this.nextLetterHint == '?')
-        {        
+        {
             this.nextLetterHint=this.nextLetterRequired;
             if (!this.freeHint) this.letterScore=1;  // Hinting costs!
         }
