@@ -1,771 +1,577 @@
-import SharedData from "./SharedData.js";
+import GameObject from "./GameObject.js";
 import Constants from "./Constants.js";
-import Duck from "./Duck.js";
-import LetterBall from "./LetterBall.js";
+import SharedData from "./SharedData.js";
 import {getSharedData} from "./SharedData.js";
-import Balloon from "./Balloon.js";
-import * as BalloonNS from "./Balloon.js";
-import Word from "./Word.js";
-import WordDB from "./WordDB.js";
-import DuckTrap from "./DuckTrap.js";
+import GameAnimation from "./GameAnimation.js";
+import ObjectAnimation from "./ObjectAnimation.js";
+import CollisionCircle from "./CollisionCircle.js";
 import PlayArea from "./PlayArea.js";
-import Lives from "./Lives.js";
-import {initialiseImages} from "./Lives.js";
-import HUD from "./Hud.js";
-import {doPlay} from "./game.js";
+import {BORDER} from "./PlayArea.js";
+import Word from "./Word.js";
+import Hud from "./Hud.js";
 
-const SPAWN_PAUSE=2000;
-
-export const BUTTON_PRESSED = {
-        "OPTIONS":1,
-        "RESUME":2 ,
-        "START":3,
-        //DONE,
-        "QUIT":4,
-        "DEMO":5,
-        "EXIT":6
-    };
+export const DIMENSION = {
+        "X":1,
+        "Y":2
+};
 
 
-const UPS_PERIOD = 1000.0/Constants.MAX_UPS;
-var lastUpdated = 0;
-var counter=0;
-//    private double averageUPS;
-//    private double averageFPS;
-//    private double averageFPSSum;
-//    private int averageFPSCount;
+const letterDefaultBitmaps = new Map();
+
+var INITIAL_Y;  // Initial y position of balloons
+const INITIAL_Y_SPEED_UNSCALED = 500/Constants.MAX_UPS; //GameLoop.speedToPerUpdate(300);
+var MAX_INITIAL_X;
+const MAX_INITIAL_X_SPEED_UNSCALED = 250/Constants.MAX_UPS; //5; //GameLoop.speedToPerUpdate(150.0);
+var maxInitialXSpeed;
+var maxCurrentXSpeed;
+const X_SPEED_INITIAL_MULTIPLIER = 0.25;
+const X_SPEED_INCREMENT_REDUCER = .9;
+var maxXSpeedMultiplier;
+
+const HINT_TURN_MIN = 10;
+const HINT_TURN_MAX = 30;
+var hintCountDown = HINT_TURN_MAX-HINT_TURN_MIN;
+
+const spawnMilliseconds = 450; // How often should we spawn balloons?
+var nextSpawn = 0;  // At what time should we spawn another?
+
+const IMAGE_RESOURCE = Constants.IMAGE_PATH +"lettercircle.png";
+const IMAGE_RESOURCE_HELP_STAR = Constants.IMAGE_PATH +"help_star.png";
+const IMAGE_RESOURCE_FREE_LIFE = Constants.IMAGE_PATH +"free_life.png";
+
+var burstAnimation;
+const X_SIZE_UNSCALED = 59;
+const Y_SIZE_UNSCALED = 59;
+
+// Collision circle centred on centre of balloon
+var collisionCircle;
+
+// Values around expanding balloon when we catch a duck
+var X_SIZE_MAX = 120;
+var Y_SIZE_MAX = 120;
+const GROWTH_PER_FRAME = 1.05;
+
+var classInitialised=false;
+// Initialise static scaled sizes/dimensions that depend on screen size.
+// Accepts object to get scaled sizes
+function initialiseSizes(balloon, sharedData)
+{
+
+    // Spawning values.
+    INITIAL_Y = sharedData.gameHeight*.15;  // Initial y position of balloons
+    maxInitialXSpeed = sharedData.scaledSize(MAX_INITIAL_X_SPEED_UNSCALED);
+    maxCurrentXSpeed = maxInitialXSpeed;
+
+    // Collision Circle
+    collisionCircle = new CollisionCircle(balloon.x_size/2, 0, 0) ;
+
+    // Values around expanding balloon when we catch a duck
+    X_SIZE_MAX = sharedData.scaledSize(120);
+    Y_SIZE_MAX = sharedData.scaledSize(120);
+
+    MAX_INITIAL_X = sharedData.gameWidth-X_SIZE_MAX;
+}
+
+export default class Balloon extends GameObject {
+
+    isFreeLife=false;
+    isHint=false;
+
+    burstObjectAnimation;
+    defaultImage;
+
+    letter;
+
+    // Fields used in identifying whether balloon is in collision with other balloons in a given direction and dimension
+    negativeDirectionBalloon;
+    positiveDirectionBalloon;
+    size_1d = 0;
+    position_1d = 0;
+    speed_1d=0;
+    startOfChain;
+
+    lives; // Only needed for "free life" balloons
+
+    x_size_growing = this.x_size;
+    y_size_growing = this.y_size;
+
+    // Used to prevent balloon passing through a shielded duck;
+    blockedLeft = false;
+    blockedRight = false;
+    blockedUp = false;
+    blockedDown = false;
 
 
-export default class GameView  {
 
-    sharedData;
+    growing = false;
+    dying = false;
+    dead = false;
+    lost = false;  // Lost out the bottom - if letter matches the one we want, word score reduces.
+    zapped = false; // WE zap balloons to make them disappear out of the game - should not interact with anything.
+
+    birdWaiting = false;
 
 
-    //private final TextToSpeechHandler tts;
-    //private final SoundEffectPlayer soundEffectPlayer;
-    //private final GamePreferences gamePreferences;
-    hud;
-    //private final Background background;
-    duck;
-    //private final TouchHandler touchHandler;
-    duckTrap;
-    lives;
-    //private final ScreenCaller thisCaller = this;
-
-    newGameCountingDown=false;
-
-    word;
-    wordDB = new WordDB();
-    playArea = new PlayArea();
-
-    balloons = [];
-    weeBirds = [];
-    weeBirdsLive = [];
-    nextWeeBirdIndex = 0;
-
-    allowSpawn=true;
-    gameOn=false;
-    loopStopping;
-    loopRunning=false;
-    firstTime=false;
-
-    buttonCanvas;
-    buttonRect = [];
-
-    buttonHandler = function(buttonPressed) {
-        switch(buttonPressed)
+    constructor(letter, isFreeLife, isHint)
+    {
+        // Need to take copy of bitmap because each object needs its own, for when we add the letter
+        super(X_SIZE_UNSCALED, Y_SIZE_UNSCALED, 0, 0, 0, 0); // No-argument constructor because we cannot calculate x position before calling super constructor
+        this.sharedData = getSharedData();
+        // Initialise static values that depend on screen size
+        initialiseSizes(this, this.sharedData);
+        if (!classInitialised)
         {
-          case BUTTON_PRESSED.RESUME:
-          {
-            this.startGame();
-            return;
-          }
-          /*case BUTTON_PRESSED.OPTIONS:
-          {
-            buttonsLayout.setButtonsForGameStatus(GAME_STATUS.OPTIONS_SHOWN);
-                        gamePreferences.showOptionsScreen(thisCaller);
-                        return;
-                    }  */
-          case BUTTON_PRESSED.QUIT:
-          {
-            this.gameOver();
-            return;
-          }
-          /*          case DEMO:
-                    {
-                        startDemo();
-                        return;
-                    }*/
-          case BUTTON_PRESSED.START:
-          {
-            this.newGame();
-          }
-        };
+          initialiseImages(this.sharedData);
+          classInitialised=true;
+        }
+
+        let x = Math.random()*MAX_INITIAL_X; // Get screen size in here.
+        this.setPosition(x, INITIAL_Y);
+        let x_speed = (Math.random()*(maxCurrentXSpeed*2))-maxCurrentXSpeed;
+        this.setVelocityUnscaled(x_speed, INITIAL_Y_SPEED_UNSCALED);
+        this.isFreeLife=isFreeLife;
+        this.isHint=isHint;
+        if (!isFreeLife && !isHint)
+        {
+          this.letter = letter;
+        }
+        this.newLetterImage(letter);
+    }
+
+    newLetterImage = function( letter)
+    {
+      if (this.isFreeLife)
+      {
+        this.defaultImage = new Image();
+        this.defaultImage.src=IMAGE_RESOURCE_FREE_LIFE;
       }
-
-/*
-    // Listener for "no" answer on Amazon "download Spanish locale" dialog - disable speech and do new game again.
-    public OnClickListener noDownloadLocaleTTSlistener = new OnClickListener() {
-        @Override
-        public void onClick(View v) {
-            Object dialog = v.getTag();
-            if (dialog instanceof Dialog)
-            {
-                ((Dialog) dialog).dismiss();
-            }
-            SharedPreferences.Editor editor = gamePreferences.getEditor();
-            editor.putBoolean(activity.getString(R.string.preferences_speak_spanish), false);
-            editor.commit();
-            newGame();
-        }
-    };
-
-
-    static {
-        scorePaint.setTextSize(40);
-        scorePaint.setColor(Color.YELLOW);
-    }
-*/
-    constructor()
-    {
-      //super(context);
-
-      this.sharedData=getSharedData();
-      let gameCanvas = document.getElementById("gameCanvas");
-//alert("W,H:" + gameCanvas.width + ", " +  gameCanvas.height
-// + " :a " + screen.width + ", " + screen.height
-//+ " :b " + gameCanvas.getBoundingClientRect().width + ", " + gameCanvas.getBoundingClientRect().height
-//+ " :c " + gameCanvas.scrollWidth + ", " + gameCanvas.scrollHeight);
-
-    this.sharedData.gameWidth = gameCanvas.getBoundingClientRect().width;
-    this.sharedData.gameHeight = gameCanvas.getBoundingClientRect().height;
-
-
-
-    //if (this.sharedData.gameWidth > screen.width)
-  //  {
-    //  this.sharedData.gameWidth = gameCanvas.width;
-    //  this.sharedData.gameHeight = gameCanvas.height;
-    //}
-    gameCanvas.width=this.sharedData.gameWidth;
-    gameCanvas.height=this.sharedData.gameHeight;
-//gameCanvas.width=screen.width;
-//gameCanvas.height=screen.height;
-//this.sharedData.gameWidth=gameCanvas.width; //creen.width; //300;
-//this.sharedData.gameHeight=gameCanvas.height; //creen.height*.85;//600;
-//alert("W,H:" + this.sharedData.gameWidth + ", " +  this.sharedData.gameHeight);
-      this.makePlayButton();
-      //this.gamePreferences = new GamePreferences(context, sharedPreferences);
-
-/*
-      // If there is no high score preference, then we never played before, so do demo.
-      if (gamePreferences.getInt(R.string.preferences_high_score, -1) < 0)
-        {
-            firstTime=true;
-        }
-*/
-        // Initialise sound effects
-      // soundEffectPlayer = new SoundEffectPlayer(context, gamePreferences);
-
-        // Initialise text to speech
-      // tts = new TextToSpeechHandler(activity, gamePreferences);
-
-        // Load class static variables that need context/resources
-      initialiseImages();
-
-      // Create the GameLoop object
-      //gameLoop = new GameLoop(this, surfaceHolder);
-
-
-      // Initialise lives
-      this.lives = new Lives();
-
-
-      // Populate the Words database, initialise first word
-      //this.word = new Word(this.wordDB);
-
-        // Create the heads-up display
-      //hud = new HUD(context, gamePreferences, lives, word);
-
-
-        // Initialise background
-      //background = new Background(context, gamePreferences);
-
-        // Make wee birds - preload them to avoid latency.
-        /*
-        for (int w=0; w<10;w++)
-        {
-            weeBirds.add(new WeeBird(context));
-        }
-*/
-        // Make the Duck
-        this.duckTrap = new DuckTrap();
-    		this.duck = new Duck(this.duckTrap);
-
-        // Register touches.
-        this.registerTouches(this.duck, this.word);
-        // Make the touch handler
-//        touchHandler = new TouchHandler(this, gamePreferences, hud, duck, word);
-        this.showPlay();
-    }
-
-    // Initialisations that should happen in background after initial screen is displayed.
-//    public void finalSetup()
-    //{
-    //    tts.setupTextToSpeech2("es", "ES");
-    //}
-
-    //public void cleanup()
-    //{
-    //    soundEffectPlayer.cleanup();
-    //    tts.fullShutDown();
-    //}
-
-    //public void returnedControl(Class screenClass)
-    /*
-    public void returnedControl()
-    {
-        // Only caller is preferences for now, so no need to check class.
-        if (gameOn || newGameCountingDown) {
-            buttonsLayout.setButtonsForGameStatus(GAME_STATUS.PAUSED);
-        }
-        else
-        {
-            buttonsLayout.setButtonsForGameStatus(GAME_STATUS.NOT_STARTED);
-            buttonsLayout.startWordDisplay(word.getUsedWords());
-        }
-    }
-*/
-
-    checkSpeechRequired = function()
-    {
-      if (this.word && this.word.waitingToSpeak) this.word.speakSpanishWord();
-    }
-
-    newGame = function()
-    {
-
-        // Don't want to build Word in constructor,
-        // need to give wordDB time to initialise.
-        if (!this.word) this.word = new Word(this.wordDB);
-        if (!this.hud) this.hud = new HUD(this.lives, this.word);
-
-
-
-        //if (gamePreferences.getBoolean(R.string.preferences_speak_spanish, true) && !tts.localeDownloadCheck(noDownloadLocaleTTSlistener))
-        //{
-        //    // If we need to do the "download voice" dialog, hide the buttons and skip the rest.
-        //    buttonsLayout.setButtonsForGameStatus(GAME_STATUS.HIDE_ALL);
-        //    return;
-        //}
-
-
-        this.newGameCountingDown = true;
-        //hud.showMessages(
-        //            new int[]{R.string.message_get_ready, R.string.message_get_ready, R.string.message_get_ready},
-        //            new int[]{R.color.white, R.color.red, R.color.black},
-        //            1000);
-
-        this.lives.initialiseLives();
-        //soundEffectPlayer.clearSuspended();
-        this.duck.newDuck();
-        this.lives.useLife();
-        BalloonNS.delaySpawn(SPAWN_PAUSE);
-        this.allowSpawn = true;
-        this.hud.clearScore();
-        this.word.newGame();
-        BalloonNS.resetXSpeedRange();
-        // Clear old balloons
-        //Balloon.zapOldBalloons(balloons);
-        this.balloons = [];
-
-
-        //this.tempCircleWord(this.balloons);
-        //weeBirdsLive.clear();
-
-        this.startGame();
-
-
-    }
-
-    newGameStart = function()
-    {
-        this.newGameCountingDown=false;
-        this.word.newWord(true); // Reset the word if there already is one
-        this.gameOn=true;
-        this.hud.gameOn=true;
-    }
-
-    gameOver = function()
-    {
-        this.gameOn=false;
-        this.hud.gameOn = false;
-        //gameLoop.stopLoop();
-        this.loopStopping=5;  // Catch the fact that loop is stopping - allow final time for drawing.
-        //if (!demoMode)
-        this.hud.checkHighScore();
-        //    else hud.restoreHighScore();
-        this.duckTrap.gameOver();
-        // Must request the button update on the UI thread, not the game thread, because it was created on UI thread.
-        //this.post(() -> buttonsLayout.setButtonsForGameStatus(GAME_STATUS.NOT_STARTED));
-        //if (!demoMode) this.post(() -> buttonsLayout.endOfGame(word.getUsedWords()));
-    }
-
-    draw = function(canvas, context) {
-
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        // If game loop stopping, it can stop after this.
-        //if (loopStopping > 0) loopStopping = 0;
-
-        //background.draw(canvas);
-
-
-        this.duck.draw(context);
-
-
-        // Draw wee birds before balloons because we want them to be underneath
-        //for (WeeBird weeBird : weeBirdsLive)
-        //{
-        //    weeBird.draw(canvas);
-        //}
-
-        // Want cage to appear under balloon it belongs to.
-        this.duckTrap.draw(context);
-
-        for (let b=0; b < this.balloons.length; b++)
-        {
-            this.balloons[b].draw(context);
-        }
-
-        this.hud.draw(context);
-    }
-
-/*
-    public boolean onTouchEvent(MotionEvent event) {
-
-        boolean touchResult;
-
-        // Bypass screen controls in demo mode.
-        if (demoMode)
-        {
-            touchResult = demoController.handleTouchEvent(touchHandler, event);
-        }
-        else {
-            touchResult = touchHandler.handleTouchEvent(event);
-        }
-        if (touchResult)
-        {
-            return true;
-        }
-        else
-        {
-            return super.onTouchEvent(event);
-        }
-    }
-*/
-
-
-    //public GamePreferences.OptionsLayout getOptionsLayout() {return  gamePreferences.getLayout();}
-
-    pauseGame = function()
-    {
-        //soundEffectPlayer.pauseAll();
-        //tiltControl.unRegister();
-
-        sharedData.paused=true;
-        //buttonsLayout.setButtonsForGameStatus(GAME_STATUS.PAUSED);
-    }
-
-    startGame = function()
-    {
-        //mainActivity.hideFlashScreen();
-        //buttonsLayout.setButtonsForGameStatus(GAME_STATUS.RUNNING);
-        //soundEffectPlayer.startLongSoundEffect(R.raw.tritsch_tratsch_polka);
-        //soundEffectPlayer.resumeAll();
-        //if (!gameLoop.isAlive())
-        //{
-        //    gameLoop = new GameLoop(this, getHolder());
-        //}
-        //if (surfaceReady) {
-        //    gameLoop.startLoop();
-        //}
-        //else
-        //{
-        //    awaitingSurface=true;
-        //}
-        this.sharedData.paused=false;
-        this.loopStopping=-1;
-        this.loopRunning=true;
-        this.stopLoop=false;
-        //this.runLoop()
-    }
-
-    runLoop = function()
-    {
-      let now = Date.now();
-      let wait = now-lastUpdated;
-      if (wait >= UPS_PERIOD)
+      else if (this.isHint)
       {
-      	  counter++;
-      		lastUpdated=now;
-      		let canvas = document.getElementById("gameCanvas");
-      		let context = canvas.getContext("2d");
-
-          this.draw(canvas, context);
-          this.update();
-      	}
-    }
-
-/*
-    public void drawUPS(Canvas canvas) {
-        String averageUPS = Double.toString(gameLoop.getAverageUPS());
-        int color = ContextCompat.getColor(getContext(), R.color.teal_200);
-        Paint paint = new Paint();
-        paint.setColor(color);
-        paint.setTextSize(40);
-        canvas.drawText("UPS: " + averageUPS, 100, 120, paint);
-    }
-
-    public void drawFPS(Canvas canvas) {
-        String averageFPS = Double.toString(gameLoop.getAverageFPS());
-        int color = ContextCompat.getColor(getContext(), R.color.teal_200);
-        Paint paint = new Paint();
-        paint.setColor(color);
-        paint.setTextSize(40);
-        canvas.drawText("FPS: " + averageFPS + "  " + gameLoop.getAverageAverageFPS(), 100, 150, paint);
-    }
-*/
-    update = function() {
-        // Handle stop in progress
-        if (this.loopStopping >= 0)
-        {
-            this.loopStopping--;
-            if (this.loopStopping == -1)
-            {
-                this.loopRunning=false;
-                this.showPlay();
-                //this.gameLoop.stopLoop();
-            }
-            return;
-        }
-
-        if (this.sharedData.paused) return;
-        if (this.newGameCountingDown)
-        {
-            //background.update();
-            //if (!hud.showMessage)
-            //{
-                this.newGameCountingDown=false;
-                this.newGameStart();
-            //}
-            return;
-        }
-
-        //background.update();
-        this.duck.update();
-
-        if (!this.duck.isCapturedOrDead()) {
-            this.duck.checkBalloonCollisions(this.balloons, this.word);
-        }
-        if (this.duck.isCaptured && this.allowSpawn)
-        {
-            this.allowSpawn=false;
-        }
-
-        if (this.duck.dead)
-        {
-            let moreLives = this.lives.useLife();
-            if (moreLives) {
-                this.duck.newDuck();
-                this.word.giveHint(true);
-                this.word.initialiseLetterScore();
-                BalloonNS.zapOldBalloons(this.balloons);
-                BalloonNS.delaySpawn(SPAWN_PAUSE);
-                this.allowSpawn = true;
-            }
-            else
-            {
-                //gameLoop.stopLoop();
-                this.gameOver();
-            }
-        }
-        // If word completed, clear balloons
-        if (this.word.gotWord)
-        {
-            for (let b=0; b<this.balloons.length;b++)
-            {
-                this.balloons[b].burst();
-            }
-        }
-
-        //List<WeeBird> weeBirdDeletions = new ArrayList<>();
-        //for (WeeBird weeBird: weeBirdsLive)
-        //{
-        //    weeBird.update();
-        //    if (weeBird.isDead()) weeBirdDeletions.add(weeBird);
-        //}
-
-        //for  (WeeBird weeBird: weeBirdDeletions) weeBirdsLive.remove(weeBird);
-
-        this.duckTrap.update();
-
-        // Spawn a balloon if it is time.
-        if (this.allowSpawn && BalloonNS.checkSpawn()) this.balloons.push(BalloonNS.spawn(this.word, this.hud));
-        //Balloon.checkCollisionsInDimension(Balloon.DIMENSION.X, balloons);
-        //Balloon.checkCollisionsInDimension(Balloon.DIMENSION.Y, balloons);
-        for (let idx = 0; idx < this.balloons.length; idx++) {
-            let balloon = this.balloons[idx];
-            this.playArea.checkBorderCollision(balloon);
-
-            //if (balloon.isBirdWaiting())
-            //{
-            //    activateWeeBird(balloon);
-            //    balloon.setBirdWaiting(false);
-            //}
-
-            balloon.update();
-            if (balloon.dead)
-            {
-                if (balloon.lost) this.word.letterLost(balloon.letter);
-            }
-        }
-
-        for (let b=this.balloons.length-1;b >= 0; b--)
-          {
-            if (this.balloons[b].dead && this.balloons[b].isHint)
-            {
-              let oldlen=this.balloons.length;
-              this.balloons.splice(b,1);
-            }
-          }
-
-
-        this.hud.increaseScore(this.word.turnScore);
-        if (this.hud.isDifficultyIncreaseDue())
-        {
-            BalloonNS.increaseDifficulty();
-            this.word.increaseDifficultyReward();
-        }
-        this.word.endTurn();
-    }
-
-    registerTouches = function(duck, word) {
-      //document.getElementById("gameCanvas").addEventListener("mousedown", function(evt) {
-  		//  duck.fingerDown(evt.offsetX, evt.offsetY);});
-        var thisObject = this;
-let isMouse=false;
-  	     //document.getElementById("gameCanvas").
-         document.addEventListener("mousemove", function(evt) {
-           thisObject.checkSpeechRequired(); //if (word && word.waitingToSpeak) word.speakSpanishWord();
-  		     duck.fingerMove(isMouse,evt.offsetX, evt.offsetY);});
-         document.getElementById("gameCanvas").addEventListener("click", function(evt) {
-           thisObject.checkSpeechRequired(); //if (word && word.waitingToSpeak) word.speakSpanishWord();
-      		     thisObject.buttonClick(evt.offsetX, evt.offsetY);});
-  	//document.getElementById("gameCanvas").addEventListener("mouseup", function(evt) {
-  	//	  duck.fingerUp(evt.offsetX, evt.offsetY);});
-        document.getElementById("gameCanvas").addEventListener("touchstart",function(evt) {
-          thisObject.checkSpeechRequired();
-          thisObject.touchStart(evt.touches);});
-        document.getElementById("gameCanvas").addEventListener("touchmove",function(evt) {
-            thisObject.checkSpeechRequired();
-            thisObject.touchMove(evt.touches);});
-    }
-
-    touchMove = function(touches)
-    {
-//alert("MOVE: " +touches.length + "  " + this.duck.fingerIsDown);
-
-      if (touches.length == 0) return;
-      if (this.gameOn)
-      {
-        let touch = touches[touches.length-1];
-//alert("TOUCH: " + touch.screenX + " " + touch.clientX + " " + touch.pageX );
-        this.duck.fingerMove(false, touch.clientX, touch.clientY); //touch.screenX, touch.screenY);
-      }
-    }
-
-    touchStart = function(touches)
-    {
-//alert("gameOn:"+gameOn);
-//if (this.gameOn && duck) alert("START: " + touches.length + " " +duck.fingerIsDown);
-      if (touches.length == 0) return;
-//alert("FD1?" + touches.length + "  "+touches[0].screenX + "  " + touches[0].screenY + "  " + this.gameOn);
-      if (this.gameOn)
-      {
-        let touch = touches[touches.length-1];
-  //alert("FD?" + touches[0].screenX + "  " + touches[0].screenY);// + touches[0].screenX + "  " + touches[1].screenY);// + "  " + this.duck);
-        this.duck.fingerDown(touch.clientX, touch.clientY); //touch.screenX, touch.screenY);
+        this.defaultImage = new Image();
+        this.defaultImage.src=IMAGE_RESOURCE_HELP_STAR;
       }
       else {
-//alert("TOUCH:" + touches[0].pageY + ": " + touches[0].clientY + " : " + touches[0].screenY);
-        for (let t=0;t<touches.length && !this.buttonClick(touches[t].clientX, touches[t].clientY);t++) ;//(touches[t].screenX, touches[t].screenY);t++) ;
+        if (letter in letterDefaultBitmaps)
+        {
+            defaultImage=letterDefaultBitmaps.get(letter);
+        }
+        else
+        {
+            let image = new Image();
+            image.src=IMAGE_RESOURCE;
+            var thisBalloon = this;
+            image.onload = function() {
+            thisBalloon.defaultImage = document.createElement('canvas');
+            thisBalloon.defaultImage.height = image.height;
+            thisBalloon.defaultImage.width = image.width;
+        		let imgContext = thisBalloon.defaultImage.getContext("2d");
+        		imgContext.drawImage(image, 0,0);
+        		imgContext.font="100px Arial";
+            imgContext.fillStyle="#DDDD00";
+        		imgContext.fillText(letter,25,70);
+
+            letterDefaultBitmaps.set(letter, thisBalloon.defaultImage);
+};
+        }
       }
     }
 
-    buttonClick = function(xPosition, yPosition)
-    {
-      if (!this.gameOn &&    // Checking horizontal first as more likely to be false.
-        yPosition >= this.buttonRect[1] && yPosition <= this.buttonRect[1] + this.buttonRect[3]
-        && xPosition >= this.buttonRect[0] && xPosition <= this.buttonRect[0] + this.buttonRect[2] )
+    draw = function(context) {
+        // If dying, do "burst" animation once; when it ends we die.  Only real balloons should get dying status
+        //if (this.dead) window.alert("GONE");
+if (!this.defaultImage)
+{
+  //window.alert("FAIL? " +  "  " + this.isFreeLife + "  " + this.isHint);
+  return;
+}
+        if (this.dying)
         {
-          //alert("click true: " + xPosition + ", " +  yPosition
-         //+ " : " + this.buttonRect[0] + " " + this.buttonRect[1]);
-          doPlay();
-          return true;
-        }
-        //alert("click false: " + xPosition + ", " +  yPosition+ " : " + this.buttonRect[0] + " " + this.buttonRect[1]);
-        return false;
-    }
-
-/*
-    private void activateWeeBird(Balloon balloon)
-    {
-        boolean found=false;
-        for (int w=0; w<weeBirds.length && !found;w++)
-        {
-            if (nextWeeBirdIndex >= weeBirds.length)
+            if (!this.burstObjectAnimation.displayFrame(context, this.x, this.y, 0))
             {
-                nextWeeBirdIndex=0;
+                this.dying=false;
+                this.dead=true;
             }
-            if (!weeBirdsLive.contains(weeBirds.get(nextWeeBirdIndex)))
+        }
+        else {
+          let xDisplaySize=this.x_size;
+          let yDisplaySize=this.y_size;
+            if (this.growing)
             {
-                weeBirds.get(nextWeeBirdIndex).activate(balloon);
-                weeBirdsLive.add(weeBirds.get(nextWeeBirdIndex));
-
-                found=true;
+                if (this.x_size_growing < X_SIZE_MAX) {
+                    this.x_size_growing *= GROWTH_PER_FRAME;
+                    this.y_size_growing *= GROWTH_PER_FRAME;
+                    xDisplaySize = this.x_size_growing;
+                    yDisplaySize = this.y_size_growing;
+                }
+                else
+                {
+                    this.growing = false;
+                }
             }
-            nextWeeBirdIndex++;
+try {
+            context.drawImage(
+              this.defaultImage,
+              this.x-(xDisplaySize/2),
+              this.y-(yDisplaySize/2),
+              xDisplaySize, yDisplaySize);
+
+} catch(e) {window.alert("ERR: " + this.dying + "  " + this.dead + " " + this.zapped + " " + this.lost + " " + this.isFreeLife + "  " +  this.isHint + " " + this.x + ", " + this.y);
+console.log(e);}
+        }
+    }
+
+    update = function() {
+
+
+        // If blocked by shielded duck, don't move.
+        //System.out.println("BALLLL: "+ x + ", " + y);
+        //System.out.println("LETTER: " + letter + " : " + blockedLeft + "  " + blockedRight + "  " + x + " : " + y + "  "+ x_speed);
+        if (!((this.blockedLeft && this.x_speed<0) ||
+          (this.blockedRight && this.x_speed>0))) {
+            this.x += this.x_speed;
+        }
+        if (!((this.blockedUp && this.y_speed<0)||
+          (this.blockedDown && this.y_speed >0 ))) {
+            this.y += this.y_speed;
         }
 
+        this.clearBlocks();
     }
-*/
+
+    getCollisionCircle = function() { return collisionCircle;}
+
+
+    borderTouched = function(border)
+    {
+        if (border == BORDER.LEFT || border == BORDER.RIGHT)
+        {
+            this.x_speed *= -1;
+            if (border == BORDER.LEFT) this.blockLeft();
+                else this.blockRight();
+        }
+        else if (border == BORDER.TOP)
+        {
+            this.y_speed *= -1;
+            this.blockUp();
+        }
+        else if (border == BORDER.OUTSIDE_BOTTOM)
+        {
+         //   y_speed *= -1;
+            this.dead = true;
+            if (!this.zapped) this.lost=true;  // Don't want to register as lost, might update letterscore in next life.
+        }
+    }
+
+
+    blockLeft = function() { this.blockedLeft = true;   }
+
+    blockRight = function() { this.blockedRight = true;  }
+
+    blockUp = function() { this.blockedUp = true; }
+
+    blockDown = function() { this.blockedDown = true; }
+
+
+    clearBlocks = function()
+    {
+        this.blockedUp=false;
+        this.blockedDown=false;
+        this.blockedLeft=false;
+        this.blockedRight=false;
+    }
+
+    canCollide = function() {
+      return !this.dead && !this.dying && !this.growing
+            && !this.zapped;
+          }
+
+    collidedWithOtherBalloon = function(balloon1)
+    {
+        if (!this.canCollide() || !balloon1.canCollide()) return false;
+        return collisionCircle.collidedWithCircle(this, balloon1, collisionCircle);
+    }
+
+
+
 /*
-    public void suspend()
-    {
-        soundEffectPlayer.pauseAll();
-        gameLoop.stopLoop();
-    }
+    public void bounceBalloon(Balloon balloon1)
+    PUT IN FROM JAVA AGAIN IF NEEDED.
 */
-    resume = function()
+    letterMatches = function(letter)
     {
-        if (this.gameOn)
-        {
-            //reEntering=true;
-            this.startGame();
-        }
+        return this.letter==letter;
+    }
+
+    gotLetter = function()
+    {
+        this.birdWaiting=true;
+        this.burst();
+    }
+
+    burst = function()
+    {
+        this.dying=true;
+        this.burstObjectAnimation = new ObjectAnimation(burstAnimation);
+        this.burstObjectAnimation.startAnimation(false);
+    }
+
+    claimSpecialBalloon = function(word)
+    {
+
+      if (this.isHint)
+      {
+        word.giveHint(true);
+        this.dead=true;
+        return true;
+      }
+      else if (this.isFreeLife)
+      {
+        this.lives.addLife();
+        this.dead=true;
+        return true;
+      }
+      else return false;
     }
 
 
-    makePlayButton = function()
+    caughtDuck(duck)
     {
-      let gameCanvas = document.getElementById("gameCanvas");
-      this.buttonCanvas = document.createElement("canvas");
-      this.buttonRect =
-      [ gameCanvas.width*.1, gameCanvas.height*.6,
-       gameCanvas.width*.8, gameCanvas.height*.2];
-      this.buttonCanvas.width = this.buttonRect[2];
-      this.buttonCanvas.height = this.buttonRect[3];
-      let context = this.buttonCanvas.getContext("2d");
-      context.rect(0, 0, this.buttonRect[2], this.buttonRect[3]);
-      context.strokeStyle = "black";
-      context.stroke();
-      context.fillStyle = "gray";
-      context.fill();
-      context.font="50px Arial";
-      context.fillStyle="#DDDD00";
-      context.textAlign="center";
-      context.fillText("Play", this.buttonRect[2]*.5, this.buttonRect[3]*.5);
+        this.growing=true;
 
-      //let myContext = gameCanvas.getContext("2d");
-      //myContext.rect(gameCanvas.width*.1, gameCanvas.height*.6, this.buttonCanvas.width, this.buttonCanvas.height)
-      //.OnClickListener(function() {alert("CLICK???");});
-    }
-
-    showPlay = function()
-    {
-
-      let canvas = document.getElementById("gameCanvas");
-      let context = canvas.getContext("2d");
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(this.buttonCanvas, this.buttonRect[0], this.buttonRect[1], this.buttonRect[2], this.buttonRect[3]);
-/*
-      context.rect(canvas.width*.1, canvas.height*.6, canvas.width*.8, canvas.height*.2);
-      context.strokeStyle = "black";
-      context.stroke();
-      context.fillStyle = "gray";
-      context.fill();
-      context.font="100px Arial";
-      context.fillStyle="#DDDD00";
-      context.fillText("Play", canvas.width*.15, canvas.height*.75);
-      */
-    }
-
-
-    tempCircleWord = function(balloons)
-    {
-      const allLetters = "qwertyuioplkjhgfdsazxcvbnm";
-      let context = document.getElementById("gameCanvas").getContext("2d");
-      let x = 10;
-      let y = 100;
-
-      let wordPair = this.wordDB.nextWordPair();
-      while (wordPair.englishWord.length != 5 ||
-        !this.allUniqueLetters(wordPair.englishWord))
-        wordPair = this.wordDB.nextWordPair();
-      console.log("WORD: " + wordPair.englishWord);
-      let myWord = wordPair.englishWord;
-      var jumbledLetters =
-        allLetters.split('').sort(function(){
-          return 0.5-Math.random()
-        }).join('');
-
-      let lettersPos=0;
-      let outWord = "";
-
-      for (let p=0; p<myWord.length;p++)
-      {
-        let nextLettersPos =
-          Math.floor(Math.random()*(26-p-lettersPos)) + lettersPos;
-        for (let lp=lettersPos; lp < nextLettersPos; lp++)
-        {
-          var letter = jumbledLetters.charAt(lp);
-          if (!myWord.includes(letter)) outWord+=letter;
-        }
-        outWord+=myWord.charAt(p);
-        lettersPos = nextLettersPos;
-      }
-      for (let lp=lettersPos; lp < jumbledLetters.length; lp++)
-      {
-        var letter = jumbledLetters.charAt(lp);
-        if (!myWord.includes(letter)) outWord+=letter;
-      }
-
-
-      for (let l = 0; l < outWord.length; l++)
-      {
-        let balloon = new Balloon(outWord.charAt(l), false, false);
-
-        balloon.setPosition(x,y);
-        x += balloon.x_size;
-        if (x > 300 - balloon.x_size)
-        {
-          x=10;
-          y+=balloon.y_size;
-        }
-        balloon.setVelocityUnscaled(0,0);
-        balloons.push(balloon);
-
-      }
-
-    }
-    allUniqueLetters = function(testWord)
-    {
-      let sortedWord = testWord.split('').sort().join('');
-      for (let p = 0; p < sortedWord.length; p++)
-      {
-        if (sortedWord.charAt(p) == sortedWord.charAt(p-1)) return false;
-      }
-      return true;
+        // Move balloon away from duck.
+        let new_x_speedUnscaled = Math.floor((Math.random()*4)+2);
+        let new_y_speedUnscaled = Math.floor((Math.random()*4)+2);
+        if (duck.x > this.x) new_x_speedUnscaled *= -1;
+        if (duck.y > this.y) new_y_speedUnscaled *= -1;
+        this.setVelocityUnscaled(new_x_speedUnscaled,
+          new_y_speedUnscaled);
     }
 
 }
+
+// "STATIC" FUNCTIONS
+
+export function checkSpawn()
+{
+    let currentTime = Date.now();
+    if (nextSpawn == 0) {
+      nextSpawn = currentTime + spawnMilliseconds;
+      return false;
+    }
+    else if (nextSpawn < currentTime)
+    {
+        nextSpawn = currentTime + spawnMilliseconds;
+        return true;
+    }
+    return false;
+}
+
+export function hintBalloonDue()
+{
+    if (--hintCountDown <= 0)
+    {
+        hintCountDown =
+        Math.floor((Math.random()*(HINT_TURN_MAX-HINT_TURN_MIN+1))+HINT_TURN_MIN);
+        return true;
+    }
+    return false;
+}
+
+export function spawn(word, hud)
+{
+  if (word.wordDB.words.length == 0) return;
+
+  if (hintBalloonDue())
+      return new Balloon("*", false, true);
+  else if (hud.isFreeLifeDue()) {
+      let lifeBalloon = new Balloon(true, false);
+      lifeBalloon.lives = hud.lives;
+      return lifeBalloon;
+  }
+    else return new Balloon(word.getRandomSpanishLetter(), false, false);
+}
+
+export function delaySpawn(delayTime)
+{
+  nextSpawn = Date.now() + delayTime;
+}
+
+function initialiseImages(sharedData)
+{
+  let xSize = sharedData.scaledSize(X_SIZE_UNSCALED);
+  let ySize = sharedData.scaledSize(Y_SIZE_UNSCALED);
+
+  // Balloon bursting animation
+  burstAnimation = new GameAnimation(xSize, ySize,
+                ['lettercircle.png',
+                        'lettercircle.png',
+                        'lettercircle.png',
+                        'balloon_burst_0.png',
+                        'balloon_burst_1.png',
+                        'balloon_burst_2.png',
+                        'balloon_burst_3.png',
+                        'balloon_burst_4.png',
+                        'balloon_burst_5.png'], 5, 0, false);
+    }
+
+
+
+    // Make old balloons drop out
+    export function zapOldBalloons(balloons)
+    {
+        for (let b=0; b<balloons.length;b++)
+        {
+            balloons[b].y_speed = 20;
+            balloons[b].zapped=true;
+        }
+    }
+
+
+    // Initialise max x speed on spawning at start of game.
+    export function resetXSpeedRange()
+    {
+        maxCurrentXSpeed = maxInitialXSpeed;
+        maxXSpeedMultiplier = X_SPEED_INITIAL_MULTIPLIER;
+    }
+
+    export function increaseDifficulty()
+    {
+        maxCurrentXSpeed += (maxCurrentXSpeed*maxXSpeedMultiplier);
+        maxXSpeedMultiplier *= X_SPEED_INCREMENT_REDUCER;
+    }
+
+    // todo: Can still see some overlaps happening.
+    export function checkCollisionsInDimension(dimension, balloons)
+    {
+        let found = false;
+        // Clear existing collisions, and set dimensions to X or Y
+        for (let b=0;b<balloons.length;b++)
+        {
+            let balloon = balloons[b];
+            balloon.negativeDirectionBalloon=null;
+            balloon.positiveDirectionBalloon=null;
+            balloon.startOfChain=null;
+            if (dimension == DIMENSION.X) {
+                balloon.size_1d = balloon.x_size;
+                balloon.position_1d = balloon.x;
+                balloon.speed_1d = balloon.x_speed;
+            }
+            else {
+                balloon.size_1d = balloon.y_size;
+                balloon.position_1d = balloon.y;
+                balloon.speed_1d = balloon.y_speed;
+            }
+        }
+        for (let idx = 0; idx < balloons.length; idx++)
+        {
+            let b1 = balloons[idx];
+
+            for (let idx1=idx+1; idx1 < balloons.length; idx1++)
+            {
+                let b2 = balloons[idx1];
+                if (b1.collidedWithOtherBalloon(b2)) {
+                    //System.out.println("COLLIDE: " + dimension + "  " + b1.letter + " " + b2.letter);
+                    if (b1.position_1d < b2.position_1d && b1.position_1d + b1.size_1d >= b2.position_1d) {
+                        b1.positiveDirectionBalloon = b2;
+                        b2.negativeDirectionBalloon = b1;
+                        found = true;
+                        if (b1.startOfChain == null) {
+                            propogateNewStartOfChain(b1, b1);
+                        } else {
+                            propogateNewStartOfChain(b2, b1.startOfChain);
+                        }
+                    } else if (b2.position_1d < b1.position_1d && b2.position_1d + b2.size_1d >= b1.position_1d) {
+                        b2.positiveDirectionBalloon = b1;
+                        b1.negativeDirectionBalloon = b2;
+                        found = true;
+                        if (b2.startOfChain == null) {
+                            propogateNewStartOfChain(b2, b2);
+                        } else {
+                            propogateNewStartOfChain(b1, b2.startOfChain);
+                        }
+                    }
+                }
+            }
+        }
+        // Stop now if we didn't find any collisions
+        if (!found) return;
+
+        // Get each start of chain
+        for (let b=0;b<balloons.length;b++)
+        {
+            let balloon = balloons[b];
+            if (balloon.startOfChain == balloon)
+            {
+                bounceChainOfCollisions(dimension, balloon);
+            }
+        }
+    }
+
+    export function propogateNewStartOfChain(balloon, startOfChain)
+        {
+            let balloon1 = balloon;
+            while (balloon1)
+            {
+                balloon1.startOfChain = startOfChain;
+                balloon1 = balloon1.positiveDirectionBalloon;
+            }
+        }
+
+
+    export function bounceChainOfCollisions(dimension, startOfChain)
+    {
+    // Go forward, then back, until no swaps
+        let direction = 1;
+        let thisBalloon = startOfChain;
+        while (true)
+        {
+          let swaps = false;
+          let nextBalloon;
+          if (direction > 0)
+          {
+            nextBalloon = thisBalloon.positiveDirectionBalloon;
+          }
+          else
+          {
+              nextBalloon = thisBalloon.negativeDirectionBalloon;
+          }
+          while (nextBalloon != null)
+          {
+              if ((direction > 0 && thisBalloon.speed_1d > nextBalloon.speed_1d)
+                  ||(direction < 0 && thisBalloon.speed_1d < nextBalloon.speed_1d))
+              {
+                  let speedA = nextBalloon.speed_1d;
+                  nextBalloon.speed_1d = thisBalloon.speed_1d;
+                  thisBalloon.speed_1d = speedA;
+                  swaps=true;
+              }
+                  thisBalloon=nextBalloon;
+                  if (direction > 0)
+                  {
+                      nextBalloon = thisBalloon.positiveDirectionBalloon;
+                  }
+                  else
+                  {
+                      nextBalloon = thisBalloon.negativeDirectionBalloon;
+                  }
+              }
+              if (!swaps) break;
+              direction *= -1;
+          }
+          // Update speeds for dimension
+          thisBalloon = startOfChain;
+          while (thisBalloon)
+          {
+              if (dimension == DIMENSION.X)
+              {
+                  thisBalloon.x_speed = thisBalloon.speed_1d;
+              }
+              else
+              {
+                  thisBalloon.y_speed = thisBalloon.speed_1d;
+              }
+              thisBalloon = thisBalloon.positiveDirectionBalloon;
+          }
+
+
+      }
