@@ -57,6 +57,7 @@ import CollisionCircle from "./CollisionCircle.js";
 
 export default class Duck extends GameObject {
 
+downs=0;
 
 	sharedData;
 
@@ -254,18 +255,20 @@ let newObjectAnimation = this.defaultObjectAnimation;
 
     // When finger moves on the screen, move the target for the duck
     fingerMove = function(isMouse, fingerX, fingerY){
-if (isMouse && !this.fingerIsDown) this.fingerDown(fingerX, fingerY);
+				if (isMouse && !this.fingerIsDown) this.fingerDown(fingerX, fingerY);
         if (!this.fingerIsDown) return;
-				//if (!this.fingerIsDown) this.fingerDown(fingerX, fingerY);
-        // Add clamping here when screen size identified.
-//alert("TARG:" + this.targetX + "  " + this.fingerOffset_x + " " + fingerX);
+
         this.targetX =fingerX+ this.fingerOffset_x;
         this.targetY =fingerY+ this.fingerOffset_y;
         if (this.targetX < 0) this.targetX = 0;
-        if (this.targetX > this.sharedData.gameWidth) this.targetX = this.sharedData.gameWidth;
+        if (this.targetX > this.sharedData.gameWidth)
+				{
+					this.targetX = this.sharedData.gameWidth;
+				}
         if (this.targetY < 0) this.targetY = 0;
         if (this.targetY > this.sharedData.gameHeight) this.targetY = this.sharedData.gameHeight;
-    }
+
+		}
 
     // When finger is lifted (or life lost), reset target so we know no finger movement in progress
     fingerUp = function()

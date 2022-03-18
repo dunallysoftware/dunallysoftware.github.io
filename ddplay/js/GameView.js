@@ -12,6 +12,7 @@ import PlayArea from "./PlayArea.js";
 import Lives from "./Lives.js";
 import {initialiseImages} from "./Lives.js";
 import HUD from "./Hud.js";
+import SoundEffectPlayer from "./SoundEffectPlayer.js";
 import {doPlay} from "./game.js";
 
 const SPAWN_PAUSE=2000;
@@ -42,8 +43,8 @@ export default class GameView  {
 
 
     //private final TextToSpeechHandler tts;
-    //private final SoundEffectPlayer soundEffectPlayer;
-    //private final GamePreferences gamePreferences;
+    gamePreferences;
+    soundEffectPlayer;
     hud;
     //private final Background background;
     duck;
@@ -69,9 +70,7 @@ export default class GameView  {
     loopRunning=false;
     firstTime=false;
 
-    buttonCanvas;
-    buttonRect = [];
-
+// Do not think we need this?
     buttonHandler = function(buttonPressed) {
         switch(buttonPressed)
         {
@@ -126,20 +125,23 @@ export default class GameView  {
         scorePaint.setColor(Color.YELLOW);
     }
 */
-    constructor()
+    constructor(gamePreferences)
     {
       //super(context);
 
       this.sharedData=getSharedData();
+      this.gamePreferences = gamePreferences;
       let gameCanvas = document.getElementById("gameCanvas");
 //alert("W,H:" + gameCanvas.width + ", " +  gameCanvas.height
 // + " :a " + screen.width + ", " + screen.height
 //+ " :b " + gameCanvas.getBoundingClientRect().width + ", " + gameCanvas.getBoundingClientRect().height
 //+ " :c " + gameCanvas.scrollWidth + ", " + gameCanvas.scrollHeight);
 
-    this.sharedData.gameWidth = gameCanvas.getBoundingClientRect().width;
-    this.sharedData.gameHeight = gameCanvas.getBoundingClientRect().height;
-
+    let boundingClientRect = gameCanvas.getBoundingClientRect();
+    this.sharedData.gameWidth = boundingClientRect.width;
+    this.sharedData.gameHeight = boundingClientRect.height;
+    this.sharedData.gameLeft = boundingClientRect.left;
+    this.sharedData.gameRight = boundingClientRect.right;
     if (!this.playArea) this.playArea = new PlayArea();
 
     //if (this.sharedData.gameWidth > screen.width)
@@ -154,9 +156,8 @@ export default class GameView  {
 //this.sharedData.gameWidth=gameCanvas.width; //creen.width; //300;
 //this.sharedData.gameHeight=gameCanvas.height; //creen.height*.85;//600;
 //alert("W,H:" + this.sharedData.gameWidth + ", " +  this.sharedData.gameHeight);
-      this.makePlayButton();
-      //this.gamePreferences = new GamePreferences(context, sharedPreferences);
 
+      //this.gamePreferences = new GamePreferences(context, sharedPreferences);
 /*
       // If there is no high score preference, then we never played before, so do demo.
       if (gamePreferences.getInt(R.string.preferences_high_score, -1) < 0)
@@ -165,8 +166,7 @@ export default class GameView  {
         }
 */
         // Initialise sound effects
-      // soundEffectPlayer = new SoundEffectPlayer(context, gamePreferences);
-
+      this.soundEffectPlayer = new SoundEffectPlayer(this.gamePreferences);
         // Initialise text to speech
       // tts = new TextToSpeechHandler(activity, gamePreferences);
 
@@ -177,7 +177,7 @@ export default class GameView  {
       //gameLoop = new GameLoop(this, surfaceHolder);
 
 
-      // Initialise lives
+      // Initialise
       this.lives = new Lives();
 
 
@@ -199,14 +199,29 @@ export default class GameView  {
         }
 */
         // Make the Duck
-        this.duckTrap = new DuckTrap();
+        this.duckTrap = new DuckTrap(this.soundEffectPlayer);
     		this.duck = new Duck(this.duckTrap);
 
         // Register touches.
         this.registerTouches(this.duck, this.word);
+        this.registerButtons();
+
+        let thisGameView=this;
+        document.addEventListener(
+        	"visibilitychange",
+            function(evt)
+            {
+              if (thisGameView.gameOn && !thisGameView.paused)
+              {
+                thisGameView.pauseGame();
+              }
+            }
+            ,false);
+
+
         // Make the touch handler
 //        touchHandler = new TouchHandler(this, gamePreferences, hud, duck, word);
-        this.showPlay();
+        this.chooseButtons();
     }
 
     // Initialisations that should happen in background after initial screen is displayed.
@@ -247,7 +262,8 @@ export default class GameView  {
 
         // Don't want to build Word in constructor,
         // need to give wordDB time to initialise.
-        if (!this.word) this.word = new Word(this.wordDB);
+        //if (!this.soundEffectPlayer) this.soundEffectPlayer = new SoundEffectPlayer(this.gamePreferences);
+        if (!this.word) this.word = new Word(this.wordDB, this.gamePreferences, this.soundEffectPlayer);
         if (!this.hud) this.hud = new HUD(this.lives, this.word);
 
 
@@ -264,8 +280,7 @@ export default class GameView  {
         //hud.showMessages(
         //            new int[]{R.string.message_get_ready, R.string.message_get_ready, R.string.message_get_ready},
         //            new int[]{R.color.white, R.color.red, R.color.black},
-        //            1000);
-
+        //
         this.lives.initialiseLives();
         //soundEffectPlayer.clearSuspended();
         this.duck.newDuck();
@@ -294,6 +309,7 @@ export default class GameView  {
         this.word.newWord(true); // Reset the word if there already is one
         this.gameOn=true;
         this.hud.gameOn=true;
+        this.chooseButtons();
     }
 
     gameOver = function()
@@ -309,6 +325,7 @@ export default class GameView  {
         // Must request the button update on the UI thread, not the game thread, because it was created on UI thread.
         //this.post(() -> buttonsLayout.setButtonsForGameStatus(GAME_STATUS.NOT_STARTED));
         //if (!demoMode) this.post(() -> buttonsLayout.endOfGame(word.getUsedWords()));
+        this.soundEffectPlayer.pauseAll(false);
     }
 
     draw = function(canvas, context) {
@@ -369,19 +386,23 @@ export default class GameView  {
 
     pauseGame = function()
     {
-        //soundEffectPlayer.pauseAll();
+        this.soundEffectPlayer.pauseAll(true);
         //tiltControl.unRegister();
 
-        sharedData.paused=true;
+        this.sharedData.paused=true;
         //buttonsLayout.setButtonsForGameStatus(GAME_STATUS.PAUSED);
+        //this.showOptions();
+        this.duck.fingerIsDown=false;
+        this.chooseButtons();
     }
 
     startGame = function()
     {
         //mainActivity.hideFlashScreen();
         //buttonsLayout.setButtonsForGameStatus(GAME_STATUS.RUNNING);
+        if (!this.soundEffectPlayer.soundEffectIsPaused("music")) this.soundEffectPlayer.playSoundEffect("music");
         //soundEffectPlayer.startLongSoundEffect(R.raw.tritsch_tratsch_polka);
-        //soundEffectPlayer.resumeAll();
+        this.soundEffectPlayer.resumeAll();
         //if (!gameLoop.isAlive())
         //{
         //    gameLoop = new GameLoop(this, getHolder());
@@ -397,6 +418,7 @@ export default class GameView  {
         this.loopStopping=-1;
         this.loopRunning=true;
         this.stopLoop=false;
+        this.chooseButtons();
         //this.runLoop()
     }
 
@@ -443,7 +465,7 @@ export default class GameView  {
             if (this.loopStopping == -1)
             {
                 this.loopRunning=false;
-                this.showPlay();
+                this.chooseButtons();
                 //this.gameLoop.stopLoop();
             }
             return;
@@ -532,7 +554,7 @@ export default class GameView  {
 
         for (let b=this.balloons.length-1;b >= 0; b--)
           {
-            if (this.balloons[b].dead && this.balloons[b].isHint)
+            if (this.balloons[b].dead)
             {
               let oldlen=this.balloons.length;
               this.balloons.splice(b,1);
@@ -549,18 +571,44 @@ export default class GameView  {
         this.word.endTurn();
     }
 
+    registerButtons = function()
+    {
+        let gameViewObject=this;
+        document.getElementById("playButton").addEventListener(
+          "click", function(evt) {
+              doPlay();
+        });
+        document.getElementById("pauseButton").addEventListener(
+          "click", function(evt) {
+              gameViewObject.pauseGame();
+        });
+        document.getElementById("optionsButton").addEventListener(
+          "click", function(evt) {
+              gameViewObject.showOptions();
+        });
+
+        document.getElementById("quitButton").addEventListener(
+          "click", function(evt) {
+              gameViewObject.gameOver();
+        });
+        document.getElementById("resumeButton").addEventListener(
+          "click", function(evt) {
+              gameViewObject.startGame();
+        });
+    }
+
     registerTouches = function(duck, word) {
       //document.getElementById("gameCanvas").addEventListener("mousedown", function(evt) {
   		//  duck.fingerDown(evt.offsetX, evt.offsetY);});
         var thisObject = this;
-let isMouse=false;
+//let isMouse=false;
   	     //document.getElementById("gameCanvas").
          document.addEventListener("mousemove", function(evt) {
            thisObject.checkSpeechRequired(); //if (word && word.waitingToSpeak) word.speakSpanishWord();
-  		     duck.fingerMove(isMouse,evt.offsetX, evt.offsetY);});
-         document.getElementById("gameCanvas").addEventListener("click", function(evt) {
-           thisObject.checkSpeechRequired(); //if (word && word.waitingToSpeak) word.speakSpanishWord();
-      		     thisObject.buttonClick(evt.offsetX, evt.offsetY);});
+           //duck.fingerMove(true,evt.offsetX, evt.offsetY);
+           duck.fingerMove(true,evt.clientX-thisObject.sharedData.gameLeft, evt.clientY);
+//alert("C:"+evt.clientX + "  M:" + evt.movementX + "  O:" + evt.offsetX + "  P:" +evt.pageX + "  S:" + evt.sreenX);
+});
   	//document.getElementById("gameCanvas").addEventListener("mouseup", function(evt) {
   	//	  duck.fingerUp(evt.offsetX, evt.offsetY);});
         document.getElementById("gameCanvas").addEventListener("touchstart",function(evt) {
@@ -596,25 +644,6 @@ let isMouse=false;
   //alert("FD?" + touches[0].screenX + "  " + touches[0].screenY);// + touches[0].screenX + "  " + touches[1].screenY);// + "  " + this.duck);
         this.duck.fingerDown(touch.clientX, touch.clientY); //touch.screenX, touch.screenY);
       }
-      else {
-//alert("TOUCH:" + touches[0].pageY + ": " + touches[0].clientY + " : " + touches[0].screenY);
-        for (let t=0;t<touches.length && !this.buttonClick(touches[t].clientX, touches[t].clientY);t++) ;//(touches[t].screenX, touches[t].screenY);t++) ;
-      }
-    }
-
-    buttonClick = function(xPosition, yPosition)
-    {
-      if (!this.gameOn &&    // Checking horizontal first as more likely to be false.
-        yPosition >= this.buttonRect[1] && yPosition <= this.buttonRect[1] + this.buttonRect[3]
-        && xPosition >= this.buttonRect[0] && xPosition <= this.buttonRect[0] + this.buttonRect[2] )
-        {
-          //alert("click true: " + xPosition + ", " +  yPosition
-         //+ " : " + this.buttonRect[0] + " " + this.buttonRect[1]);
-          doPlay();
-          return true;
-        }
-        //alert("click false: " + xPosition + ", " +  yPosition+ " : " + this.buttonRect[0] + " " + this.buttonRect[1]);
-        return false;
     }
 
 /*
@@ -656,48 +685,54 @@ let isMouse=false;
     }
 
 
-    makePlayButton = function()
+    showOptions=function()
     {
-      let gameCanvas = document.getElementById("gameCanvas");
-      this.buttonCanvas = document.createElement("canvas");
-      this.buttonRect =
-      [ gameCanvas.width*.1, gameCanvas.height*.6,
-       gameCanvas.width*.8, gameCanvas.height*.2];
-      this.buttonCanvas.width = this.buttonRect[2];
-      this.buttonCanvas.height = this.buttonRect[3];
-      let context = this.buttonCanvas.getContext("2d");
-      context.rect(0, 0, this.buttonRect[2], this.buttonRect[3]);
-      context.strokeStyle = "black";
-      context.stroke();
-      context.fillStyle = "gray";
-      context.fill();
-      context.font="50px Arial";
-      context.fillStyle="#DDDD00";
-      context.textAlign="center";
-      context.fillText("Play", this.buttonRect[2]*.5, this.buttonRect[3]*.5);
-
-      //let myContext = gameCanvas.getContext("2d");
-      //myContext.rect(gameCanvas.width*.1, gameCanvas.height*.6, this.buttonCanvas.width, this.buttonCanvas.height)
-      //.OnClickListener(function() {alert("CLICK???");});
+      document.getElementById("gamePanel").style.display = "none";
+      document.getElementById("optionsList").style.display = "block";
     }
 
-    showPlay = function()
-    {
 
-      let canvas = document.getElementById("gameCanvas");
-      let context = canvas.getContext("2d");
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(this.buttonCanvas, this.buttonRect[0], this.buttonRect[1], this.buttonRect[2], this.buttonRect[3]);
-/*
-      context.rect(canvas.width*.1, canvas.height*.6, canvas.width*.8, canvas.height*.2);
-      context.strokeStyle = "black";
-      context.stroke();
-      context.fillStyle = "gray";
-      context.fill();
-      context.font="100px Arial";
-      context.fillStyle="#DDDD00";
-      context.fillText("Play", canvas.width*.15, canvas.height*.75);
-      */
+    chooseButtons=function()
+    {
+      let pauseButton=document.getElementById("pauseButton");
+      let resumeButton=document.getElementById("resumeButton");
+      let optionsButton=document.getElementById("optionsButton");
+      let quitButton=document.getElementById("quitButton");
+      let playButton=document.getElementById("playButton");
+      if (this.gameOn)
+      {
+        if (this.sharedData.paused)
+        {
+          pauseButton.style.display="none";
+          resumeButton.style.display="block";
+          optionsButton.style.display="block";
+          quitButton.style.display="block";
+          playButton.style.display="none";
+        }
+        else
+        {
+          pauseButton.style.display="block";
+          resumeButton.style.display="none";
+          optionsButton.style.display="none";
+          quitButton.style.display="none";
+          playButton.style.display="none";
+        }
+      }
+      else if (this.newGameCountingDown)
+      {
+        pauseButton.style.display="none";
+        resumeButton.style.display="none";
+        optionsButton.style.display="none";
+        quitButton.style.display="none";
+        playButton.style.display="none";
+      }
+      else {
+        pauseButton.style.display="none";
+        resumeButton.style.display="none";
+        optionsButton.style.display="none";
+        quitButton.style.display="none";
+        playButton.style.display="block";
+      }
     }
 
 
@@ -767,5 +802,6 @@ let isMouse=false;
       }
       return true;
     }
+
 
 }

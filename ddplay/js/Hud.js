@@ -98,7 +98,7 @@ export default class HUD {
         this.highScoreTextItem = document.getElementById("highScore");
         //if (highScore > 99999) highScoreTextItem.setTextSize(smallScoreMultiplier);
 
-        this.letterScoreTextItem = document.getElementById("wordScore");
+        this.letterScoreTextItem = document.getElementById("letterScore");
         this.nextLetterTextItem = document.getElementById("hint");
 //        messageTextItem = new TextItem(false, Paint.Align.CENTER, 0, -.6, Color.WHITE, .8);
 //        messageTextItem.overrideY_Position((int)(sharedData.gameHeight*.45));
@@ -166,9 +166,6 @@ export default class HUD {
 
     draw = function(context)
     {
-
-
-
         this.currentScoreTextItem.textContent=this.score;
         this.highScoreTextItem.textContent=this.highScore;
         if (this.gameOn)

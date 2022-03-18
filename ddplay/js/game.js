@@ -10,6 +10,7 @@ import WordDB from "./WordDB.js";
 import DuckTrap from "./DuckTrap.js";
 import PlayArea from "./PlayArea.js";
 import GameView from "./GameView.js";
+import GamePreferences from "./GamePreferences.js";
 
 let counter=0;
 let lastDate=new Date(0);
@@ -23,8 +24,42 @@ var duckTrap;
 var imgCanvas;
 var balloons = [];
 var dummyBalloon;
-var gameView = new GameView();
+var gameView;
+var gamePreferences = new GamePreferences();
 
+document.getElementById("gamePanel").style.display = "none";
+document.getElementById("doneButton").addEventListener("click", closeOptions, false);
+gamePreferences.populateScreen();
+document.getElementById("spanishSpeechVolume").addEventListener(
+	"change", function(evt){sliderSet(this)},false);
+document.getElementById("soundEffectsVolume").addEventListener(
+	"change", function(evt){sliderSet(this)},false);
+document.getElementById("musicVolume").addEventListener(			"change", function(evt){sliderSet(this)},false);
+
+if (!('speechSynthesis' in window))
+{
+	document.getElementById("spanishSpeechVolumeLabel").style.display = "none";
+	document.getElementById("spanishSpeechVolume").style.display = "none";
+}
+
+
+export function closeOptions()
+{
+	document.getElementById("optionsList").style.display = "none";
+	document.getElementById("gamePanel").style.display = "block";
+
+	if (!gameView) gameView=new GameView(gamePreferences);
+}
+
+export function boxChecked(element)
+{
+	gamePreferences.checkBoxUpdate(element);
+	//alert(Object.keys(event).length);
+}
+export function sliderSet(element)
+{
+	gamePreferences.sliderUpdate(element);
+}
 
 export function handleEvent(evt)
 {

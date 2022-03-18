@@ -15,6 +15,8 @@ export function getSharedData()
 export default class SharedData {
 	gameHeight=0;
 	gameWidth=0;
+	gameLeft=0;
+	gameRight=0;
 	paused=false;
 
 

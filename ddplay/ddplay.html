@@ -6,8 +6,27 @@
 	</head>
 	<body style="background-color:#AADAF9">
 <!--	 <div class="topPanel"> -->
-	<div class="gamePanel" id="gamePanelId">
-		<canvas id="gameCanvas" style="background-color:#009900" </canvas> <!-- width='300' height='600'></canvas> -->
+	<div class="gamePanel" id="gamePanel">
+		<div class="gameCanvasDiv">
+			<canvas id="gameCanvas" class="gameCanvasClass" style="background-color:#009900" </canvas> <!-- width='300' height='600'></canvas> -->
+		</div>
+		<div class="buttonPanel">
+			<button id="pauseButton" class="pauseButton">PAUSE</button>
+
+			<button id="resumeButton" class="resumeButton">RESUME</button>
+			<button id="optionsButton" class="optionsButton">OPTIONS</button>
+			<button id="quitButton" class="quitButton">QUIT</button>
+			<button id="playButton" class="playButton">PLAY</button>
+		</div>
+	</div>
+	<div id="optionsList" class="optionsList">
+		<text id="spanishSpeechVolumeLabel" class="optionLabel">Spanish speech volume</text>
+		<input id="spanishSpeechVolume" type="range" min="0" max="10" value="5" class="slider">
+		<text class="optionLabel">Sound effects volume</text>
+		<input id="soundEffectsVolume" type="range" min="0" max="10" value="5" class="slider">
+		<text class="optionLabel">Music volume</text>
+		<input id="musicVolume" type="range" min="0" max="10" value="5" class="slider">
+		<button id="doneButton" class="optionLabel">CONTINUE</button>
 	</div>
 		<div class="topLeft" id="topLeftId">
 			<text id="englishWordLabel" class="headingLabel">English:</text>
@@ -16,16 +35,17 @@
 			<text id="maskedWord" class="headingField"></text>
 			<text id="hintLabel" class="headingLabel">Hint:</text>
 			<text id="hint" class="headingField"></text>
-			<text id="messageText" class="headingField">v0.4</text>
+			<text id="messageText" class="headingField"></text>
 		</div>
 		<div class = "topRight" id="topRightId">
 			<text id="highScoreLabel" class="headingLabel">Highest Score:</text>
 			<text id="highScore" class="headingField"></text>
 			<text id="scoreLabel" class="headingLabel">Score:></text>
 			<text id="score" class="headingField"></text>
-			<text id="wordScoreLabel" class="headingLabel">Word Score:</text>
-			<text id="wordScore" class="headingField"></text>
+			<text id="letterScoreLabel" class="headingLabel">Letter Score:</text>
+			<text id="letterScore" class="headingField"></text>
 		</div>
+
 	<!--</div> -->
 		<!--
 		<div class="leftSide">

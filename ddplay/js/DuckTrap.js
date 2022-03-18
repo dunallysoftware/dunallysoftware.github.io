@@ -11,14 +11,14 @@ const Y_SIZE_UNSCALED = 197;
 var animationEmpty;
 var animationFull;
 var imageDuckFalling;
-const FALLING_DUCK_VOLUME_MULTIPLIER = 0.98;
+const FALLING_DUCK_VOLUME_MULTIPLIER = 0.8;
 const FALLING_DUCK_VOLUME_DELAY = 200;
 const X_SPEED_UNSCALED = 1;
 const Y_SPEED_UNSCALED = 1;
 
 export default class DuckTrap extends GameObject {
 
-    //final SoundEffectPlayer soundEffectPlayer;
+    soundEffectPlayer;
     sharedData;
     objectAnimationEmpty;
     objectAnimationFull;
@@ -29,13 +29,13 @@ export default class DuckTrap extends GameObject {
     adjustedImage;
     adjustedImageContext;
     fallingDuckVolume;
-    nextFallingDuckVolumeDrop;
+    nextFallingDuckVolumeDrop = 0;
 
-    constructor()
+    constructor(soundEffectPlayer)
     {
         super(X_SIZE_UNSCALED, Y_SIZE_UNSCALED, 0, 0, 0, 0);
 				this.sharedData = getSharedData();
-        //this.soundEffectPlayer = soundEffectPlayer;
+        this.soundEffectPlayer = soundEffectPlayer;
         this.setVelocityUnscaled(X_SPEED_UNSCALED, Y_SPEED_UNSCALED);
         if (!classInitialised) {
             initialiseAnimation(this.sharedData);
@@ -68,10 +68,10 @@ export default class DuckTrap extends GameObject {
                 {
                     this.startImageEffect(this.adjustedImage, 75, .98, .2, 5);
                     this.displayPhase =2;
-                    //soundEffectPlayer.stopLongSoundEffect(R.raw.duck_panic);
+                    this.soundEffectPlayer.pauseSoundEffect("duck_panic");
                     // todo: doesn't sound quite right?
-                    //soundEffectPlayer.startLongSoundEffect(R.raw.duck_long);
-                    //fallingDuckVolume = soundEffectPlayer.getVolume();
+                    this.soundEffectPlayer.playSoundEffect("duck_long");
+                    this.fallingDuckVolume = this.soundEffectPlayer.volume;
                 }
             }
             if (this.displayPhase < 2)
@@ -145,18 +145,18 @@ export default class DuckTrap extends GameObject {
             if (!this.updateEffectBitmap())
             {
                 this.running=false;
-                //soundEffectPlayer.stopLongSoundEffect(R.raw.duck_long);
+                this.soundEffectPlayer.pauseSoundEffect("duck_long");
             }
             else
             {
                 // Still running, reduce falling duck volume
                 let now = Date.now();
-                //if (nextFallingDuckVolumeDrop <= now)
-                //{
-                //    fallingDuckVolume *= FALLING_DUCK_VOLUME_MULTIPLIER;
-              //      soundEffectPlayer.setLongSoundEffectVolume(R.raw.duck_long, fallingDuckVolume);
-              //      nextFallingDuckVolumeDrop = now+FALLING_DUCK_VOLUME_DELAY;
-              //  }
+                if (this.nextFallingDuckVolumeDrop <= now)
+                {
+                    this.fallingDuckVolume *= FALLING_DUCK_VOLUME_MULTIPLIER;
+                    this.soundEffectPlayer.setEffectVolume("duck_long", this.fallingDuckVolume);
+                    this.nextFallingDuckVolumeDrop = now+FALLING_DUCK_VOLUME_DELAY;
+                }
             }
         }
 
@@ -184,7 +184,7 @@ export default class DuckTrap extends GameObject {
         //targetObjectCentre(duck);  // move towards duck
         this.objectAnimationEmpty.startAnimation(false);
         this.displayPhase =0;
-        //soundEffectPlayer.startLongSoundEffect(R.raw.duck_panic);
+        this.soundEffectPlayer.playSoundEffect("duck_panic");
     }
 
 
@@ -193,9 +193,8 @@ export default class DuckTrap extends GameObject {
     {
         this.running=false;
         this.displayPhase=0;
-        //soundEffectPlayer.stopLongSoundEffect(R.raw.duck_long);
+        //this.soundEffectPlayer.stopLongSoundEffect(R.raw.duck_long);
         //soundEffectPlayer.stopLongSoundEffect(R.raw.duck_panic);
-
     }
 
 }

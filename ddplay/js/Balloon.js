@@ -138,6 +138,7 @@ export default class Balloon extends GameObject {
         this.newLetterImage(letter);
     }
 
+
     newLetterImage = function( letter)
     {
       if (this.isFreeLife)
@@ -176,14 +177,14 @@ export default class Balloon extends GameObject {
       }
     }
 
+
     draw = function(context) {
         // If dying, do "burst" animation once; when it ends we die.  Only real balloons should get dying status
         //if (this.dead) window.alert("GONE");
-if (!this.defaultImage)
-{
-  //window.alert("FAIL? " +  "  " + this.isFreeLife + "  " + this.isHint);
-  return;
-}
+        if (!this.defaultImage)
+        {
+          return;
+        }
         if (this.dying)
         {
             if (!this.burstObjectAnimation.displayFrame(context, this.x, this.y, 0))
@@ -193,35 +194,33 @@ if (!this.defaultImage)
             }
         }
         else {
-          let xDisplaySize=this.x_size;
-          let yDisplaySize=this.y_size;
-            if (this.growing)
-            {
-                if (this.x_size_growing < X_SIZE_MAX) {
-                    this.x_size_growing *= GROWTH_PER_FRAME;
-                    this.y_size_growing *= GROWTH_PER_FRAME;
-                    xDisplaySize = this.x_size_growing;
-                    yDisplaySize = this.y_size_growing;
-                }
-                else
-                {
-                    this.growing = false;
-                }
+          let xDisplaySize=this.x_size_growing;
+          let yDisplaySize=this.y_size_growing;
+          if (this.growing)
+          {
+              if (this.x_size_growing < X_SIZE_MAX) {
+                  this.x_size_growing *= GROWTH_PER_FRAME;
+                this.y_size_growing *= GROWTH_PER_FRAME;
+                xDisplaySize = this.x_size_growing;
+                yDisplaySize = this.y_size_growing;
+              }
+              else
+              {
+                this.growing = false;
+              }
             }
-try {
-            context.drawImage(
-              this.defaultImage,
-              this.x-(xDisplaySize/2),
-              this.y-(yDisplaySize/2),
-              xDisplaySize, yDisplaySize);
-
-} catch(e) {window.alert("ERR: " + this.dying + "  " + this.dead + " " + this.zapped + " " + this.lost + " " + this.isFreeLife + "  " +  this.isHint + " " + this.x + ", " + this.y);
-console.log(e);}
+            try {
+              context.drawImage(
+                this.defaultImage,
+                this.x-(xDisplaySize/2),
+                this.y-(yDisplaySize/2),
+                xDisplaySize, yDisplaySize);
+            } catch(e) {//window.alert("ERR: " + this.dying + "  " + this.dead + " " + this.zapped + " " + this.lost + " " + this.isFreeLife + "  " +  this.isHint + " " + this.x + ", " + this.y);
+              console.log(e);}
         }
     }
 
     update = function() {
-
 
         // If blocked by shielded duck, don't move.
         //System.out.println("BALLLL: "+ x + ", " + y);

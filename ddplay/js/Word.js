@@ -1,5 +1,7 @@
 import WordDB from "./WordDB.js";
 import {WordPair} from "./WordDB.js";
+import SoundEffectPlayer from "./SoundEffectPlayer.js";
+import GamePreferences from "./GamePreferences.js";
 
 // For populating masked field
 const QUESTION_MARKS = "??????????????????????????????";
@@ -7,16 +9,16 @@ const QUESTION_MARKS = "??????????????????????????????";
 const LETTER_SCORE_FULL_START = 19;  // The initial score for getting a letter first time.
 const LETTER_SCORE_INCREMENT_INIT = 1;
 const LETTER_SCORE_INCREMENT_REDUCER = .9;
+const BIRDIE_AUDIO = new Audio("./audio/birdie.wav");
 var letterScoreMultiplier = LETTER_SCORE_INCREMENT_INIT;
 var letterScoreDifficultyAddon = 0;
 
 
 export default class Word {
 
-
     wordDB;
     //private final TextToSpeechHandler tts;
-    //private final SoundEffectPlayer soundEffectPlayer;
+    soundEffectPlayer;
 
     spanishWord;
     englishWord;
@@ -30,7 +32,7 @@ export default class Word {
     usedWords = [];
 
     speakSpanish;
-    //private final GamePreferences gamePreferences;
+    gamePreferences;
 
 
 
@@ -49,23 +51,33 @@ export default class Word {
     waitingToSpeak=false;
     utterance;
 
-    constructor( wordDB, utterance)
+    constructor( wordDB, gamePreferences, soundEffectPlayer)
     {
         this.wordDB = wordDB;
+        this.gamePreferences=gamePreferences;
+        this.gamePreferences.addSubscriber(this, this.setupSpeech);
         //this.soundEffectPlayer = soundEffectPlayer;
         //this.gamePreferences = gamePreferences;
         //gamePreferences.addListener(this);
         //this.speakSpanish = true; //speakSpanish = this.gamePreferences.getBoolean(R.string.preferences_speak_spanish, true);
-        this.speakSpanish = ('speechSynthesis' in window);
-        if (this.speakSpanish)
-        {
-        //  window.speechSynthesis.cancel();
-          this.utterance = new SpeechSynthesisUtterance();
-          this.utterance.lang="es";
-        //  window.speechSynthesis.speak(this.utterance);
-        }
+        this.setupSpeech(this);
+        this.soundEffectPlayer = soundEffectPlayer;
         this.newWord(false);
         this.initialiseLetterScore();
+    }
+
+    // Accept object as parameter so can be called from GamePreferences update publish.
+    setupSpeech = function(object)
+    {
+
+      let speechVolume = object.gamePreferences.getValue("SPEAK_SPANISH_VOLUME");
+      object.speakSpanish = (speechVolume > 0 && 'speechSynthesis' in window);
+      if (object.speakSpanish)
+      {
+        if (!object.utterance) object.utterance = new SpeechSynthesisUtterance();
+        object.utterance.lang="es";
+        object.utterance.volume=speechVolume/10.0;
+      }
     }
 
     initialiseLetterScore = function()
@@ -157,13 +169,13 @@ speakSpanishWord = function()
             {
                 this.nextLetterRequired = this.spanishWord.charAt(this.lettersFound);
                 this.nextLetterHint = '?';
-                //soundEffectPlayer.playSoundEffect(R.raw.birdie);
+                this.soundEffectPlayer.playSoundEffect("birdie");
             }
             else
             {
                 this.gotWord=true;
                 this.turnScore += this.wordScore;
-                //soundEffectPlayer.playSoundEffect(R.raw.word_found);
+                this.soundEffectPlayer.playSoundEffect("word_found");
                 this.newWord(false);
 
                 return false;
